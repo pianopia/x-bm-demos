@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Jev-shaped lab (free mock) — Flapi</title>
+<style>
+:root{color-scheme:dark;--bg:#0f1419;--card:#1a222c;--ink:#e8eef5;--muted:#8b9aab;--accent:#5eead4;--shop:#fbbf24;--line:#2a3542;--bad:#fb7185}
+*{box-sizing:border-box}
+body{margin:0;font-family:ui-sans-serif,system-ui,"Hiragino Sans",sans-serif;background:radial-gradient(1000px 520px at 12% -8%,#1e3a3a,var(--bg));color:var(--ink);min-height:100vh;padding:22px}
+header{max-width:1080px;margin:0 auto 14px}
+h1{font-size:1.2rem;margin:0 0 6px}
+.sub{color:var(--muted);font-size:.9rem;line-height:1.55;margin:0}
+.banner{max-width:1080px;margin:0 auto 14px;padding:10px 12px;border-radius:12px;border:1px solid #665c1e;background:#2a2410;color:#fde68a;font-size:.85rem}
+.layout{max-width:1080px;margin:0 auto;display:grid;gap:14px;grid-template-columns:1.1fr .9fr}
+@media(max-width:900px){.layout{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
+label{display:block;font-size:.72rem;color:var(--muted);margin:10px 0 5px}
+select,textarea,button{font:inherit;width:100%}
+select,textarea{background:#0b1220;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:10px}
+textarea{min-height:130px;resize:vertical;line-height:1.4}
+button{background:var(--accent);color:#042f2e;border:0;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer;width:auto}
+button.secondary{background:#334155;color:var(--ink)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+pre{white-space:pre-wrap;word-break:break-word;background:#0b1220;border-radius:12px;padding:12px;border:1px solid var(--line);font-size:.78rem;max-height:420px;overflow:auto}
+.bar{display:grid;grid-template-columns:120px 1fr 44px;gap:8px;align-items:center;font-size:.8rem;margin:4px 0}
+.track{height:8px;background:#0b1220;border-radius:99px;overflow:hidden}
+.fill{height:100%;background:linear-gradient(90deg,var(--accent),#34d399)}
+.meta{color:var(--muted);font-size:.8rem}
+.err{color:var(--bad)}
+h2{font-size:.95rem;margin:14px 0 6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Jev形ラボ（無料モック）× Flapi</h1>
+  <p class="sub">API形だけ本物寄せ: state + Noul/Choice/Score → 確率分布。Cloudflare Pages 静的のみ（課金なし）。</p>
+</header>
+<div class="banner">これは <strong>TypeSafe Jev 本体ではない</strong>。Workers AI / 有料 API は使わず、ブラウザ内ヒューリスティックで応答形を再現した実験UI。本物キーが無料で使えるようになったら差し替え可能。</div>
+<div class="layout">
+  <section class="panel">
+    <label>シナリオ</label>
+    <select id="scenario"></select>
+    <label>state</label>
+    <textarea id="state"></textarea>
+    <label>questions</label>
+    <textarea id="questions" style="min-height:210px"></textarea>
+    <div class="row">
+      <button id="run" type="button">判定（モック）</button>
+      <button id="reset" class="secondary" type="button">シナリオ再読込</button>
+    </div>
+    <p class="meta" id="hint"></p>
+  </section>
+  <section class="panel">
+    <div class="meta">結果</div>
+    <div id="viz"></div>
+    <label>生 JSON</label>
+    <pre id="raw">まだ実行してない</pre>
+  </section>
+</div>
+<script>
+const scenarios = {
+  stamp_gate: {
+    title: 'スタンプ付与ゲート',
+    hint: '近接イベントにスタンプを自動付与するか。',
+    state: {
+      store: { id: 'cafe-bell', name: 'カフェ・ベル' },
+      user: { visits_30d: 2, device_trust: 0.82 },
+      event: { type: 'geofence_enter', distance_m: 18, duration_sec: 95, same_device_burst_10m: 1 }
+    },
+    questions: {
+      grant_stamp: {
+        type: 'noul',
+        instructions: '来店スタンプを自動付与してよいか？',
+        criteria: { true: '近接・滞在が自然', false: '不正・異常の疑い' }
+      },
+      fraud_risk: {
+        type: 'score',
+        instructions: '不正リスクは？',
+        criteria: ['低い', '中程度', '高い']
+      },
+      next_action: {
+        type: 'choice',
+        instructions: '次アクションは？',
+        criteria: {
+          auto_grant: '即時付与',
+          soft_hold: '追加条件待ち',
+          human_review: '人手レビュー',
+          deny: '静默否認'
+        }
+      }
+    }
+  },
+  push_route: {
+    title: '近接プッシュ出し分け',
+    hint: '1通を送るか・どの型か。',
+    state: {
+      store: { category: 'ramen', quiet_hours: false },
+      user: { last_push_hours_ago: 26, stamp_progress: '3/10', opted_in: true },
+      context: { distance_m: 120, weather: 'rain', hour_jst: 11 }
+    },
+    questions: {
+      should_push: {
+        type: 'noul',
+        instructions: '今プッシュしてよいか？',
+        criteria: { true: '頻度・距離・オプトインOK', false: '送らない方がよい' }
+      },
+      template: {
+        type: 'choice',
+        instructions: 'メッセージ型は？',
+        criteria: {
+          stamp_nudge: 'スタンプ進捗',
+          lunch_offer: 'ランチ/天候オファー',
+          plain_nearby: '軽い近接挨拶',
+          none: '送らない'
+        }
+      },
+      intensity: {
+        type: 'score',
+        instructions: '訴求の強さは？',
+        criteria: ['控えめ', '普通', '強め']
+      }
+    }
+  },
+  review_mod: {
+    title: 'レビュー・モデレーション',
+    hint: 'UGC公開前の振り分け。',
+    state: {
+      review: { text: '店員に暴言を吐かれた。二度と行かない。', stars: 1, has_photo: true },
+      reporter: { account_age_days: 40, prior_flags: 0 }
+    },
+    questions: {
+      allow_public: {
+        type: 'noul',
+        instructions: 'そのまま公開してよいか？',
+        criteria: { true: '批判だが規約内', false: '公開不適' }
+      },
+      bucket: {
+        type: 'choice',
+        instructions: '区分は？',
+        criteria: { publish: '公開', edit_request: '修正依頼', hide: '非公開', escalate: 'エスカレーション' }
+      },
+      toxicity: {
+        type: 'score',
+        instructions: '攻撃性は？',
+        criteria: ['穏やか', '強い不満', '攻撃的']
+      }
+    }
+  }
+};
+
+const scenarioEl = document.getElementById('scenario');
+const stateEl = document.getElementById('state');
+const questionsEl = document.getElementById('questions');
+const hintEl = document.getElementById('hint');
+const rawEl = document.getElementById('raw');
+const vizEl = document.getElementById('viz');
+
+Object.entries(scenarios).forEach(([id, s]) => {
+  const o = document.createElement('option');
+  o.value = id; o.textContent = s.title;
+  scenarioEl.appendChild(o);
+});
+
+function loadScenario() {
+  const s = scenarios[scenarioEl.value];
+  stateEl.value = JSON.stringify(s.state, null, 2);
+  questionsEl.value = JSON.stringify(s.questions, null, 2);
+  hintEl.textContent = s.hint;
+}
+scenarioEl.onchange = loadScenario;
+document.getElementById('reset').onclick = loadScenario;
+loadScenario();
+
+function parseMaybeJson(text) {
+  const t = text.trim();
+  if (!t) throw new Error('空です');
+  if (t.startsWith('{') || t.startsWith('[')) return JSON.parse(t);
+  return t;
+}
+
+function hash32(str) {
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+function unit(seed, salt) {
+  const x = hash32(String(seed) + '|' + salt);
+  return (x % 10000) / 10000;
+}
+function softmax(weights) {
+  const m = Math.max(...weights);
+  const ex = weights.map(w => Math.exp((w - m) * 3));
+  const s = ex.reduce((a, b) => a + b, 0);
+  return ex.map(v => v / s);
+}
+
+function scoreState(state) {
+  const text = typeof state === 'string' ? state : JSON.stringify(state);
+  return { text, h: hash32(text) };
+}
+
+function mockNoul(stateInfo, qid, q) {
+  const t = stateInfo.text.toLowerCase();
+  let bias = 0.55;
+  if (/deny|fraud|暴言|攻撃|quiet|burst|fail/.test(t)) bias -= 0.25;
+  if (/opted_in\":true|duration_sec\":9|distance_m\":1[0-9]|natural|stamp/.test(t)) bias += 0.15;
+  if (/stars\":1|二度と/.test(t)) bias -= 0.1;
+  const jitter = unit(stateInfo.h, qid) * 0.2 - 0.1;
+  const noul = Math.max(0.02, Math.min(0.98, bias + jitter));
+  return { type: 'noul', noul: Number(noul.toFixed(4)) };
+}
+
+function mockChoice(stateInfo, qid, q) {
+  const keys = Object.keys(q.criteria || {});
+  if (!keys.length) return { type: 'choice', choice: null, confidence: 0, probabilities: {} };
+  const weights = keys.map((k, i) => {
+    let w = unit(stateInfo.h, qid + k) + 0.15;
+    const t = stateInfo.text.toLowerCase();
+    if (k.includes('grant') && /distance_m\":1[0-9]|duration_sec\":9/.test(t)) w += 0.8;
+    if (k.includes('review') && /burst|fraud|暴言/.test(t)) w += 0.9;
+    if (k.includes('deny') && /burst|fraud/.test(t)) w += 0.7;
+    if (k.includes('hide') || k.includes('escalate')) {
+      if (/暴言|攻撃|stars\":1/.test(t)) w += 0.85;
+    }
+    if (k.includes('publish') && !/暴言|攻撃/.test(t)) w += 0.5;
+    if (k === 'none' && /quiet|last_push_hours_ago\":[0-5]/.test(t)) w += 0.7;
+    if (k.includes('lunch') && /rain|ramen|11/.test(t)) w += 0.6;
+    if (k.includes('stamp_nudge') && /3\/10|stamp_progress/.test(t)) w += 0.55;
+    return w + i * 0.01;
+  });
+  const probsArr = softmax(weights);
+  const probabilities = {};
+  keys.forEach((k, i) => { probabilities[k] = Number(probsArr[i].toFixed(4)); });
+  let best = keys[0], bestP = -1;
+  for (const k of keys) if (probabilities[k] > bestP) { bestP = probabilities[k]; best = k; }
+  const sorted = [...probsArr].sort((a, b) => b - a);
+  const confidence = Number((sorted[0] - (sorted[1] || 0)).toFixed(4));
+  return { type: 'choice', choice: best, confidence, probabilities };
+}
+
+function mockScore(stateInfo, qid, q) {
+  const levels = q.criteria || [];
+  const n = Math.max(2, Math.min(10, levels.length || 3));
+  const weights = [];
+  for (let i = 0; i < n; i++) {
+    let w = unit(stateInfo.h, qid + ':' + i);
+    const t = stateInfo.text.toLowerCase();
+    if (i === n - 1 && /fraud|burst|暴言|攻撃|stars\":1/.test(t)) w += 0.9;
+    if (i === 0 && /distance_m\":1[0-9]|opted_in\":true|穏やか/.test(t)) w += 0.5;
+    if (qid.includes('intensity') && /rain|lunch/.test(t) && i === 1) w += 0.4;
+    weights.push(w);
+  }
+  const probsArr = softmax(weights);
+  const probabilities = {};
+  const legend = {};
+  let score = 0;
+  for (let i = 0; i < n; i++) {
+    probabilities[String(i)] = Number(probsArr[i].toFixed(4));
+    legend[String(i)] = levels[i] || ('L' + i);
+    score += i * probsArr[i];
+  }
+  const sorted = [...probsArr].sort((a, b) => b - a);
+  const confidence = Number((sorted[0] - (sorted[1] || 0)).toFixed(4));
+  return { type: 'score', score: Number(score.toFixed(4)), confidence, legend, probabilities };
+}
+
+function evaluate(state, questions) {
+  const info = scoreState(state);
+  const answers = {};
+  for (const [qid, q] of Object.entries(questions || {})) {
+    const type = (q.type || '').toLowerCase();
+    if (type === 'noul' || type === 'boolean') answers[qid] = mockNoul(info, qid, q);
+    else if (type === 'choice') answers[qid] = mockChoice(info, qid, q);
+    else if (type === 'score') answers[qid] = mockScore(info, qid, q);
+    else answers[qid] = { type: 'error', message: 'unknown type: ' + type };
+  }
+  return {
+    ok: true,
+    mock: true,
+    model: 'jev-shaped-mock/local-heuristic',
+    note: 'Free static simulator — not TypeSafe Jev',
+    answers
+  };
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+function barRow(label, v) {
+  const p = Math.max(0, Math.min(1, Number(v) || 0));
+  return '<div class="bar"><div>' + escapeHtml(String(label).slice(0, 18)) + '</div><div class="track"><div class="fill" style="width:' + (p * 100).toFixed(1) + '%"></div></div><div>' + (p * 100).toFixed(0) + '%</div></div>';
+}
+function renderAnswers(data) {
+  const answers = data.answers || {};
+  const blocks = [];
+  for (const [qid, a] of Object.entries(answers)) {
+    let head = qid;
+    let bars = '';
+    if (a.type === 'noul') {
+      head += ' · noul=' + Number(a.noul).toFixed(3) + ' (P(true))';
+      bars = barRow('true', a.noul) + barRow('false', 1 - a.noul);
+    } else if (a.type === 'choice') {
+      head += ' · choice=' + a.choice + ' · conf=' + Number(a.confidence || 0).toFixed(2);
+      bars = Object.entries(a.probabilities || {}).sort((x, y) => y[1] - x[1]).map(([k, v]) => barRow(k, v)).join('');
+    } else if (a.type === 'score') {
+      head += ' · score=' + Number(a.score).toFixed(2) + ' · conf=' + Number(a.confidence || 0).toFixed(2);
+      const legend = a.legend || {};
+      bars = Object.keys(a.probabilities || {}).sort((x, y) => Number(x) - Number(y)).map(k => barRow((legend[k] != null ? k + ': ' + legend[k] : k), a.probabilities[k])).join('');
+    } else {
+      bars = '<div class="err">' + escapeHtml(JSON.stringify(a)) + '</div>';
+    }
+    blocks.push('<h2>' + escapeHtml(head) + '</h2>' + bars);
+  }
+  vizEl.innerHTML = blocks.join('') || '<p class="meta">answers 空</p>';
+}
+
+document.getElementById('run').onclick = () => {
+  try {
+    const state = parseMaybeJson(stateEl.value);
+    const questions = parseMaybeJson(questionsEl.value);
+    const t0 = performance.now();
+    const data = evaluate(state, questions);
+    data.latency_ms = Math.round(performance.now() - t0);
+    rawEl.textContent = JSON.stringify(data, null, 2);
+    renderAnswers(data);
+  } catch (e) {
+    vizEl.innerHTML = '<p class="err">' + escapeHtml(e.message) + '</p>';
+    rawEl.textContent = String(e);
+  }
+};
+</script>
+</body>
+</html>
