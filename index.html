@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>x-bm-demos — bookmark prototypes</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg:#0f1419; --card:#1a222c; --ink:#e8eef5; --muted:#8b9aab;
+    --accent:#5eead4; --shop:#fbbf24; --line:#2a3542;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; font-family: ui-sans-serif, system-ui, "Hiragino Sans", sans-serif;
+    background: radial-gradient(1000px 500px at 15% -10%, #1e3a3a, var(--bg));
+    color: var(--ink); min-height:100vh; padding:28px 20px 64px;
+  }
+  header { max-width:960px; margin:0 auto 28px; }
+  h1 { font-size:1.4rem; margin:0 0 8px; letter-spacing:.02em; }
+  .sub { color:var(--muted); font-size:.92rem; line-height:1.55; margin:0; }
+  .sub a { color:var(--accent); }
+  .grid {
+    max-width:960px; margin:0 auto;
+    display:grid; gap:14px;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  }
+  .card {
+    display:block; text-decoration:none; color:inherit;
+    background:var(--card); border:1px solid var(--line); border-radius:16px;
+    padding:16px 16px 14px; transition: border-color .15s, transform .15s;
+  }
+  .card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .date { font-size:.72rem; color:var(--shop); font-weight:700; letter-spacing:.08em; }
+  h2 { font-size:1.02rem; margin:8px 0 6px; }
+  .card p { margin:0; color:var(--muted); font-size:.86rem; line-height:1.45; }
+  .tags { margin-top:12px; display:flex; flex-wrap:wrap; gap:6px; }
+  .tag {
+    font-size:.68rem; padding:3px 8px; border-radius:999px;
+    background:#0b1220; color:var(--accent); border:1px solid #234;
+  }
+  footer { max-width:960px; margin:28px auto 0; color:var(--muted); font-size:.8rem; }
+  footer code { color:var(--ink); }
+</style>
+</head>
+<body>
+<header>
+  <h1>x-bm-demos</h1>
+  <p class="sub">Xブックマークから拾った軽い試作の一覧。公開先は Cloudflare Pages（無料枠）。ソースは
+  <a href="https://github.com/pianopia/x-bm-demos">github.com/pianopia/x-bm-demos</a>。</p>
+</header>
+<main class="grid">
+
+    <a class="card" href="./lens-trace-2026-09-18/">
+      <div class="date">2026-09-18</div>
+      <h2>Lens Trace — anamorphic + diffusion</h2>
+      <p>FF寄りシネマのレンズ味を Web で先に触るトイ。</p>
+      <div class="tags"><span class="tag">BELENUS</span><span class="tag">three.js</span><span class="tag">cinematic</span></div>
+    </a>
+    <a class="card" href="./stamp-pattern-2026-09-17/">
+      <div class="date">2026-09-17</div>
+      <h2>Stamp Pattern Mixer</h2>
+      <p>店舗スタンプカードの背景柄ミキサー（ベース×重ね×色×密度）。</p>
+      <div class="tags"><span class="tag">Flapi</span><span class="tag">SVG</span></div>
+    </a>
+    <a class="card" href="./vector-stamp-card/">
+      <div class="date">2026-09-16</div>
+      <h2>Vector Stamp Card</h2>
+      <p>拡大しても輪郭が割れない Flapi 風スタンプカード。</p>
+      <div class="tags"><span class="tag">Flapi</span><span class="tag">SVG</span></div>
+    </a>
+    <a class="card" href="./soft-plant-card/">
+      <div class="date">2026-09-08</div>
+      <h2>Soft Plant Card</h2>
+      <p>柔らかい植物カードの見た目試作。</p>
+      <div class="tags"><span class="tag">UI</span><span class="tag">CSS</span></div>
+    </a>
+    <a class="card" href="./parallax-window/">
+      <div class="date">2026-09-08</div>
+      <h2>Parallax Window</h2>
+      <p>窓枠パララックスの軽いデモ。</p>
+      <div class="tags"><span class="tag">UI</span><span class="tag">CSS</span></div>
+    </a>
+    <a class="card" href="./autosave-coalesce/">
+      <div class="date">2026-09-08</div>
+      <h2>Autosave Coalesce</h2>
+      <p>連続入力のオートセーブ間引きイメージ。</p>
+      <div class="tags"><span class="tag">tategaki</span><span class="tag">UX</span></div>
+    </a>
+    <a class="card" href="./2026-09-08-grass-walk/">
+      <div class="date">2026-09-08</div>
+      <h2>Grass Walk (three.js)</h2>
+      <p>草の上を歩く軽い three.js 試作。</p>
+      <div class="tags"><span class="tag">BELENUS</span><span class="tag">three.js</span></div>
+    </a>
+    <a class="card" href="./2026-09-08-branchless-bench/">
+      <div class="date">2026-09-08</div>
+      <h2>Branchless Python Bench</h2>
+      <p>ブランチレス寄りの Python マイクロベンチ（ソース付き）。</p>
+      <div class="tags"><span class="tag">AI coding</span></div>
+    </a>
+</main>
+<footer>
+  追加するとき: <code>demos/&lt;slug&gt;/</code> を置いて <code>catalog.json</code> を更新 → Pages にデプロイ。
+</footer>
+</body>
+</html>

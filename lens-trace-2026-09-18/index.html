@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Anamorphic + diffusion (three.js toy)</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #0b0c10; font-family: ui-sans-serif, system-ui, sans-serif; }
+  #c { display: block; width: 100%; height: 100%; }
+  .hud {
+    position: fixed; left: 12px; bottom: 12px; right: 12px; max-width: 420px;
+    background: rgba(12,14,20,.78); border: 1px solid rgba(255,255,255,.12);
+    border-radius: 12px; padding: 12px 14px; color: #e8ecf4; backdrop-filter: blur(8px);
+    font-size: 13px; line-height: 1.45;
+  }
+  .hud h1 { margin: 0 0 6px; font-size: 14px; font-weight: 650; }
+  .hud p { margin: 0 0 10px; color: #aeb6c8; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 6px 0; }
+  label { display: flex; gap: 6px; align-items: center; cursor: pointer; }
+  input[type=range] { width: 120px; }
+  a { color: #8ec5ff; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud">
+  <h1>Anamorphic stretch + diffusion (toy)</h1>
+  <p>Inspired by <a href="https://x.com/Damjan_Minovski/status/2100341038942482721" target="_blank" rel="noopener">@Damjan_Minovski</a> three.js lens WIP. Not real lens tracing — cheap post for BELENUS FF-cinematic mood checks.</p>
+  <div class="row">
+    <label><input type="checkbox" id="ana" checked /> anamorphic</label>
+    <label><input type="checkbox" id="diff" checked /> diffusion</label>
+  </div>
+  <div class="row">
+    <label>stretch <input type="range" id="stretch" min="0" max="100" value="55" /></label>
+    <label>glow <input type="range" id="glow" min="0" max="100" value="45" /></label>
+  </div>
+</div>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x07080c);
+scene.fog = new THREE.FogExp2(0x07080c, 0.045);
+
+const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(0, 1.2, 6.2);
+
+const hemi = new THREE.HemisphereLight(0xb8c7ff, 0x1a1208, 1.1);
+scene.add(hemi);
+const key = new THREE.DirectionalLight(0xffe2b8, 2.2);
+key.position.set(4, 6, 2);
+scene.add(key);
+const rim = new THREE.PointLight(0x66aaff, 2.5, 20);
+rim.position.set(-3, 1.5, 2);
+scene.add(rim);
+const warm = new THREE.PointLight(0xff8844, 1.8, 18);
+warm.position.set(2.5, 0.8, -1);
+scene.add(warm);
+
+const floor = new THREE.Mesh(
+  new THREE.CircleGeometry(8, 64),
+  new THREE.MeshStandardMaterial({ color: 0x12151c, roughness: 0.9, metalness: 0.2 })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -1.2;
+scene.add(floor);
+
+const mats = [
+  new THREE.MeshStandardMaterial({ color: 0xf2d6a2, roughness: 0.25, metalness: 0.15, emissive: 0x221808, emissiveIntensity: 0.15 }),
+  new THREE.MeshStandardMaterial({ color: 0x7eb6ff, roughness: 0.2, metalness: 0.55, emissive: 0x061428, emissiveIntensity: 0.35 }),
+  new THREE.MeshStandardMaterial({ color: 0xff6b4a, roughness: 0.35, metalness: 0.2, emissive: 0x2a0804, emissiveIntensity: 0.25 }),
+  new THREE.MeshStandardMaterial({ color: 0xe8eef8, roughness: 0.15, metalness: 0.7 })
+];
+const objs = [];
+const geo = [
+  new THREE.IcosahedronGeometry(0.55, 1),
+  new THREE.TorusKnotGeometry(0.35, 0.12, 120, 16),
+  new THREE.CapsuleGeometry(0.28, 0.7, 6, 12),
+  new THREE.BoxGeometry(0.7, 0.7, 0.7)
+];
+for (let i = 0; i < 10; i++) {
+  const m = new THREE.Mesh(geo[i % geo.length], mats[i % mats.length]);
+  const a = (i / 10) * Math.PI * 2;
+  m.position.set(Math.cos(a) * 2.1, Math.sin(i) * 0.35, Math.sin(a) * 1.6);
+  m.userData.phase = i * 0.7;
+  scene.add(m);
+  objs.push(m);
+}
+
+const AnamorphicDiffusionShader = {
+  uniforms: {
+    tDiffuse: { value: null },
+    uStretch: { value: 0.55 },
+    uGlow: { value: 0.45 },
+    uAna: { value: 1 },
+    uDiff: { value: 1 },
+    uRes: { value: new THREE.Vector2(innerWidth, innerHeight) }
+  },
+  vertexShader: /* glsl */`
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */`
+    uniform sampler2D tDiffuse;
+    uniform float uStretch;
+    uniform float uGlow;
+    uniform float uAna;
+    uniform float uDiff;
+    uniform vec2 uRes;
+    varying vec2 vUv;
+
+    vec3 sampleAt(vec2 uv) {
+      return texture2D(tDiffuse, clamp(uv, 0.0, 1.0)).rgb;
+    }
+
+    void main() {
+      vec2 uv = vUv;
+      // mild barrel + horizontal squeeze feel for anamorphic adapter vibe
+      if (uAna > 0.5) {
+        vec2 c = uv - 0.5;
+        float r2 = dot(c, c);
+        c.x *= mix(1.0, 1.0 + uStretch * 0.35, 1.0);
+        c.x /= mix(1.0, 1.0 + uStretch * 0.55, 1.0);
+        c *= 1.0 + r2 * (0.08 + uStretch * 0.12);
+        uv = c + 0.5;
+      }
+
+      vec3 col = sampleAt(uv);
+
+      // cheap horizontal streak (anamorphic flare)
+      if (uAna > 0.5) {
+        vec2 px = 1.0 / uRes;
+        vec3 streak = vec3(0.0);
+        float wsum = 0.0;
+        for (int i = -8; i <= 8; i++) {
+          float w = 1.0 - abs(float(i)) / 9.0;
+          streak += sampleAt(uv + vec2(px.x * float(i) * (6.0 + uStretch * 18.0), 0.0)) * w;
+          wsum += w;
+        }
+        streak /= wsum;
+        float lum = dot(col, vec3(0.299, 0.587, 0.114));
+        col = mix(col, col + streak * vec3(1.0, 0.92, 0.75), clamp(lum * uStretch * 0.55, 0.0, 0.65));
+      }
+
+      // diffusion filter: soft haze lift
+      if (uDiff > 0.5) {
+        vec2 px = 1.0 / uRes;
+        vec3 blur = vec3(0.0);
+        blur += sampleAt(uv + px * vec2( 2.5, 0.0));
+        blur += sampleAt(uv + px * vec2(-2.5, 0.0));
+        blur += sampleAt(uv + px * vec2(0.0,  2.5));
+        blur += sampleAt(uv + px * vec2(0.0, -2.5));
+        blur += sampleAt(uv + px * vec2( 3.5, 2.0));
+        blur += sampleAt(uv + px * vec2(-3.5,-2.0));
+        blur /= 6.0;
+        col = mix(col, max(col, blur * 1.15), 0.25 + uGlow * 0.45);
+        col += blur * uGlow * 0.18;
+      }
+
+      // subtle vignette
+      vec2 vc = vUv - 0.5;
+      float vig = smoothstep(0.85, 0.2, dot(vc, vc) * 2.2);
+      col *= mix(0.75, 1.0, vig);
+
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `
+};
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.35, 0.6, 0.85);
+composer.addPass(bloom);
+const fx = new ShaderPass(AnamorphicDiffusionShader);
+composer.addPass(fx);
+
+const elAna = document.getElementById('ana');
+const elDiff = document.getElementById('diff');
+const elStretch = document.getElementById('stretch');
+const elGlow = document.getElementById('glow');
+
+function sync() {
+  fx.uniforms.uAna.value = elAna.checked ? 1 : 0;
+  fx.uniforms.uDiff.value = elDiff.checked ? 1 : 0;
+  fx.uniforms.uStretch.value = elStretch.value / 100;
+  fx.uniforms.uGlow.value = elGlow.value / 100;
+  bloom.strength = 0.2 + (elGlow.value / 100) * 0.55;
+}
+[elAna, elDiff, elStretch, elGlow].forEach((el) => el.addEventListener('input', sync));
+sync();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+  fx.uniforms.uRes.value.set(innerWidth, innerHeight);
+});
+
+const clock = new THREE.Clock();
+function frame() {
+  const t = clock.getElapsedTime();
+  objs.forEach((m, i) => {
+    m.rotation.x = t * 0.35 + m.userData.phase;
+    m.rotation.y = t * 0.55 + i;
+    m.position.y = Math.sin(t * 1.1 + m.userData.phase) * 0.35;
+  });
+  camera.position.x = Math.sin(t * 0.2) * 0.6;
+  camera.lookAt(0, 0.2, 0);
+  composer.render();
+  requestAnimationFrame(frame);
+}
+frame();
+</script>
+</body>
+</html>

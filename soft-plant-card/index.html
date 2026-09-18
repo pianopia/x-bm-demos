@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Soft Plant Card — faux normal transfer</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    background: radial-gradient(1200px 700px at 20% 10%, #1b2a22, #0b0f0d 60%);
+    color: #e8f0ea;
+  }
+  .wrap { width: min(920px, 94vw); display: grid; gap: 1.25rem; }
+  h1 { font-size: 1.05rem; font-weight: 600; margin: 0; opacity: .9; }
+  p.note { margin: 0; font-size: .85rem; opacity: .65; line-height: 1.5; }
+  .stage {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.25rem;
+  }
+  .card {
+    position: relative; aspect-ratio: 4/5; border-radius: 18px; overflow: hidden;
+    background: #142018; border: 1px solid rgba(180,220,190,.15);
+    box-shadow: 0 20px 50px rgba(0,0,0,.45);
+    transform-style: preserve-3d;
+    transition: transform .15s ease-out;
+    cursor: grab;
+  }
+  .card:active { cursor: grabbing; }
+  .leaf {
+    position: absolute; inset: 12% 18% 22% 18%;
+    background:
+      radial-gradient(60% 50% at 35% 30%, #7dcc7a 0%, transparent 55%),
+      radial-gradient(50% 45% at 70% 55%, #3f8f4a 0%, transparent 60%),
+      linear-gradient(160deg, #2f6b3a, #163821 70%);
+    border-radius: 48% 52% 45% 55% / 55% 40% 60% 45%;
+    filter: saturate(1.05);
+  }
+  .leaf::before {
+    content: ""; position: absolute; inset: 8%;
+    background:
+      linear-gradient(105deg, transparent 40%, rgba(255,255,255,.18) 48%, transparent 56%),
+      linear-gradient(190deg, rgba(0,0,0,.25), transparent 45%);
+    border-radius: inherit; mix-blend-mode: soft-light; pointer-events: none;
+  }
+  .vein {
+    position: absolute; left: 50%; top: 12%; bottom: 18%; width: 2px;
+    background: linear-gradient(180deg, rgba(210,255,210,.55), rgba(40,80,50,.2));
+    transform: translateX(-50%); border-radius: 2px; opacity: .55;
+  }
+  .shade {
+    position: absolute; inset: 0; pointer-events: none;
+    background:
+      radial-gradient(circle at var(--lx, 35%) var(--ly, 30%),
+        rgba(255,255,230,.28) 0%,
+        rgba(255,255,230,.08) 28%,
+        transparent 55%),
+      linear-gradient(145deg, rgba(255,255,255,.08), transparent 40%, rgba(0,0,0,.35));
+    mix-blend-mode: soft-light;
+  }
+  .label {
+    position: absolute; left: 14px; right: 14px; bottom: 14px;
+    font-size: .78rem; opacity: .8; line-height: 1.35;
+  }
+  .hard .leaf {
+    background: linear-gradient(160deg, #4aa85a, #1a3d24);
+    border-radius: 12px;
+  }
+  .hard .leaf::before { display: none; }
+  .hard .shade {
+    background: linear-gradient(145deg, rgba(255,255,255,.2), transparent 35%, rgba(0,0,0,.45));
+    mix-blend-mode: normal; opacity: .55;
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div>
+      <h1>Soft plant card — faux “normal transfer”</h1>
+      <p class="note">左: 硬いフラット陰影 / 右: ソフトなハイライト追従（マウスで光源を動かす）。Riley Brown の Blender 植物カード講座の雰囲気を、CSSだけで30分再現したデモ。</p>
+    </div>
+    <div class="stage">
+      <div class="card hard" id="hard">
+        <div class="leaf"><div class="vein"></div></div>
+        <div class="shade"></div>
+        <div class="label">Hard / flat normals<br/>エッジが立ってカードっぽい</div>
+      </div>
+      <div class="card soft" id="soft">
+        <div class="leaf"><div class="vein"></div></div>
+        <div class="shade"></div>
+        <div class="label">Soft / transferred feel<br/>ハイライトがなだらかに流れる</div>
+      </div>
+    </div>
+  </div>
+<script>
+  const soft = document.getElementById('soft');
+  soft.addEventListener('pointermove', (e) => {
+    const r = soft.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 100;
+    const y = ((e.clientY - r.top) / r.height) * 100;
+    soft.style.setProperty('--lx', x + '%');
+    soft.style.setProperty('--ly', y + '%');
+    const rx = ((y - 50) / 50) * -6;
+    const ry = ((x - 50) / 50) * 8;
+    soft.style.transform = `rotateX(${rx}deg) rotateY(${ry}deg)`;
+  });
+  soft.addEventListener('pointerleave', () => {
+    soft.style.transform = '';
+    soft.style.setProperty('--lx', '35%');
+    soft.style.setProperty('--ly', '30%');
+  });
+</script>
+</body>
+</html>

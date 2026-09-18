@@ -1,0 +1,71 @@
+{
+  "project": "x-bm-demos",
+  "pages": "https://x-bm-demos.pages.dev/",
+  "github": "https://github.com/pianopia/x-bm-demos",
+  "demos": [
+    {
+      "id": "lens-trace-2026-09-18",
+      "title": "Lens Trace — anamorphic + diffusion",
+      "date": "2026-09-18",
+      "path": "./lens-trace-2026-09-18/",
+      "tags": ["BELENUS", "three.js", "cinematic"],
+      "blurb": "FF寄りシネマのレンズ味を Web で先に触るトイ。"
+    },
+    {
+      "id": "stamp-pattern-2026-09-17",
+      "title": "Stamp Pattern Mixer",
+      "date": "2026-09-17",
+      "path": "./stamp-pattern-2026-09-17/",
+      "tags": ["Flapi", "SVG"],
+      "blurb": "店舗スタンプカードの背景柄ミキサー（ベース×重ね×色×密度）。"
+    },
+    {
+      "id": "vector-stamp-card",
+      "title": "Vector Stamp Card",
+      "date": "2026-09-16",
+      "path": "./vector-stamp-card/",
+      "tags": ["Flapi", "SVG"],
+      "blurb": "拡大しても輪郭が割れない Flapi 風スタンプカード。"
+    },
+    {
+      "id": "soft-plant-card",
+      "title": "Soft Plant Card",
+      "date": "2026-09-08",
+      "path": "./soft-plant-card/",
+      "tags": ["UI", "CSS"],
+      "blurb": "柔らかい植物カードの見た目試作。"
+    },
+    {
+      "id": "parallax-window",
+      "title": "Parallax Window",
+      "date": "2026-09-08",
+      "path": "./parallax-window/",
+      "tags": ["UI", "CSS"],
+      "blurb": "窓枠パララックスの軽いデモ。"
+    },
+    {
+      "id": "autosave-coalesce",
+      "title": "Autosave Coalesce",
+      "date": "2026-09-08",
+      "path": "./autosave-coalesce/",
+      "tags": ["tategaki", "UX"],
+      "blurb": "連続入力のオートセーブ間引きイメージ。"
+    },
+    {
+      "id": "2026-09-08-grass-walk",
+      "title": "Grass Walk (three.js)",
+      "date": "2026-09-08",
+      "path": "./2026-09-08-grass-walk/",
+      "tags": ["BELENUS", "three.js"],
+      "blurb": "草の上を歩く軽い three.js 試作。"
+    },
+    {
+      "id": "2026-09-08-branchless-bench",
+      "title": "Branchless Python Bench",
+      "date": "2026-09-08",
+      "path": "./2026-09-08-branchless-bench/",
+      "tags": ["AI coding"],
+      "blurb": "ブランチレス寄りの Python マイクロベンチ（ソース付き）。"
+    }
+  ]
+}

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Autosave coalesce demo</title>
+<style>
+  :root { font-family: ui-sans-serif, system-ui, sans-serif; color: #e8e6e3; background: #12141a; }
+  body { max-width: 720px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+  h1 { font-size: 1.25rem; font-weight: 650; }
+  .row { display: flex; gap: .75rem; flex-wrap: wrap; margin: 1rem 0; }
+  button {
+    background: #2a3142; color: #fff; border: 1px solid #3d4660;
+    border-radius: 8px; padding: .55rem .9rem; cursor: pointer;
+  }
+  button:hover { background: #343c52; }
+  button.primary { background: #3b6ea5; border-color: #4a7fba; }
+  .panel {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;
+  }
+  @media (max-width: 640px) { .panel { grid-template-columns: 1fr; } }
+  .card {
+    background: #1a1f2b; border: 1px solid #2c3448; border-radius: 12px;
+    padding: 1rem; min-height: 220px;
+  }
+  .card h2 { font-size: .95rem; margin: 0 0 .5rem; color: #9fb0d0; }
+  .meter {
+    height: 10px; background: #0d1018; border-radius: 999px; overflow: hidden;
+    margin: .5rem 0 1rem;
+  }
+  .meter > span { display: block; height: 100%; width: 0%; background: #6aa1ff; transition: width .15s; }
+  .bad .meter > span { background: #e07070; }
+  .log {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .75rem; white-space: pre-wrap; max-height: 140px; overflow: auto;
+    color: #b7c0d4;
+  }
+  .stat { font-size: .85rem; color: #c9d2e3; }
+  .hint { color: #8b95a8; font-size: .85rem; }
+</style>
+</head>
+<body>
+  <h1>オートセーブ合体デモ</h1>
+  <p class="hint">毎回すぐ書く vs デバウンス合体。イベント連打で「引っかかり」の差を見る（@itchie_tatsumi のブックマーク向け）。</p>
+  <div class="row">
+    <button class="primary" id="burst">イベント連打 ×20</button>
+    <button id="one">イベント ×1</button>
+    <button id="reset">リセット</button>
+  </div>
+  <div class="panel">
+    <div class="card bad" id="naive">
+      <h2>Naive（毎回すぐ保存）</h2>
+      <div class="stat">書き込み: <span id="n-writes">0</span> / ヒット感: <span id="n-hitch">0ms</span></div>
+      <div class="meter"><span id="n-bar"></span></div>
+      <div class="log" id="n-log"></div>
+    </div>
+    <div class="card" id="coalesce">
+      <h2>Coalesce（250ms デバウンス + キュー合体）</h2>
+      <div class="stat">書き込み: <span id="c-writes">0</span> / ヒット感: <span id="c-hitch">0ms</span></div>
+      <div class="meter"><span id="c-bar"></span></div>
+      <div class="log" id="c-log"></div>
+    </div>
+  </div>
+<script>
+const WRITE_COST_MS = 40; // fake disk/IO hitch per write
+const DEBOUNCE_MS = 250;
+
+function el(id){ return document.getElementById(id); }
+function append(logEl, line){
+  logEl.textContent = (line + "\n" + logEl.textContent).slice(0, 1200);
+}
+
+const naive = { writes: 0, hitch: 0 };
+const coal = { writes: 0, hitch: 0, timer: null, pending: 0 };
+
+function paint(){
+  el("n-writes").textContent = naive.writes;
+  el("n-hitch").textContent = naive.hitch + "ms";
+  el("n-bar").style.width = Math.min(100, naive.writes * 4) + "%";
+  el("c-writes").textContent = coal.writes;
+  el("c-hitch").textContent = coal.hitch + "ms";
+  el("c-bar").style.width = Math.min(100, coal.writes * 4) + "%";
+}
+
+function fakeWrite(side, reason){
+  const t0 = performance.now();
+  // busy-wait to simulate hitch (short)
+  while (performance.now() - t0 < WRITE_COST_MS) {}
+  const cost = Math.round(performance.now() - t0);
+  if (side === "naive") {
+    naive.writes++; naive.hitch += cost;
+    append(el("n-log"), `write #${naive.writes} (${reason}) +${cost}ms`);
+  } else {
+    coal.writes++; coal.hitch += cost;
+    append(el("c-log"), `write #${coal.writes} (merged ${reason}) +${cost}ms`);
+  }
+  paint();
+}
+
+function onEvent(label){
+  // naive: write immediately
+  fakeWrite("naive", label);
+  // coalesce: queue + debounce
+  coal.pending++;
+  clearTimeout(coal.timer);
+  coal.timer = setTimeout(() => {
+    const n = coal.pending; coal.pending = 0;
+    fakeWrite("coal", `${n} events`);
+  }, DEBOUNCE_MS);
+}
+
+el("one").onclick = () => onEvent("1");
+el("burst").onclick = () => {
+  for (let i = 0; i < 20; i++) setTimeout(() => onEvent(`burst${i+1}`), i * 15);
+};
+el("reset").onclick = () => {
+  clearTimeout(coal.timer);
+  naive.writes = naive.hitch = 0;
+  coal.writes = coal.hitch = coal.pending = 0;
+  el("n-log").textContent = "";
+  el("c-log").textContent = "";
+  paint();
+};
+paint();
+</script>
+</body>
+</html>
