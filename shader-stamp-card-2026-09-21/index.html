@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Shader Stamp Card — Flapi toy</title>
+<style>
+  :root { color-scheme: dark; --ink:#f4f7fb; --muted:#9aa8b8; --line:#2a3544; --accent:#5eead4; --shop:#fbbf24; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; font-family: ui-sans-serif, system-ui, "Hiragino Sans", sans-serif;
+    background: #0b1016; color: var(--ink);
+    display: grid; place-items: center; padding: 24px 16px 40px;
+  }
+  .wrap { width: min(420px, 100%); }
+  h1 { font-size: 1.05rem; margin: 0 0 6px; }
+  .sub { color: var(--muted); font-size: .82rem; line-height: 1.5; margin: 0 0 16px; }
+  .sub a { color: var(--accent); }
+  .stage {
+    perspective: 900px; margin: 0 auto 14px;
+  }
+  .card {
+    position: relative; width: 100%; aspect-ratio: 3/4.2; border-radius: 22px;
+    overflow: hidden; transform-style: preserve-3d;
+    box-shadow: 0 24px 60px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.08);
+    transition: transform .12s ease-out;
+    cursor: grab; user-select: none;
+    background: #122;
+  }
+  .card:active { cursor: grabbing; }
+  canvas#bg {
+    position: absolute; inset: 0; width: 100%; height: 100%; display: block;
+  }
+  .glass {
+    position: absolute; inset: 0;
+    background: linear-gradient(160deg, rgba(255,255,255,.14), transparent 42%, rgba(0,0,0,.28));
+    pointer-events: none;
+  }
+  .content {
+    position: absolute; inset: 0; padding: 22px 20px 18px;
+    display: flex; flex-direction: column; gap: 10px;
+    transform: translateZ(28px);
+  }
+  .badge {
+    align-self: flex-start; font-size: .68rem; font-weight: 700; letter-spacing: .04em;
+    padding: 5px 10px; border-radius: 999px; background: rgba(0,0,0,.35);
+    border: 1px solid rgba(255,255,255,.2); color: var(--shop);
+  }
+  .shop {
+    margin-top: 4px; font-size: 1.35rem; font-weight: 800; text-shadow: 0 2px 12px rgba(0,0,0,.45);
+  }
+  .hint { color: rgba(255,255,255,.82); font-size: .84rem; line-height: 1.45; max-width: 18em; }
+  .stamps {
+    margin-top: auto; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
+  }
+  .slot {
+    aspect-ratio: 1; border-radius: 50%;
+    border: 2px dashed rgba(255,255,255,.35);
+    background: rgba(0,0,0,.18);
+    display: grid; place-items: center;
+    font-size: .72rem; font-weight: 800; color: rgba(255,255,255,.35);
+    transition: transform .18s cubic-bezier(.2,1.4,.3,1), background .15s, border-color .15s, color .15s;
+  }
+  .slot.filled {
+    border-style: solid; border-color: #fff;
+    background: radial-gradient(circle at 35% 30%, #fff8, transparent 55%), rgba(251,191,36,.92);
+    color: #1a1200; box-shadow: 0 6px 16px rgba(0,0,0,.35);
+  }
+  .slot.pop { transform: scale(1.18); }
+  .cta {
+    margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;
+  }
+  button {
+    appearance: none; border: 1px solid var(--line); background: #151c26; color: var(--ink);
+    border-radius: 999px; padding: 8px 14px; font-size: .82rem; cursor: pointer;
+  }
+  button.primary { background: #134e4a; border-color: #2dd4bf; color: #ecfeff; }
+  button:hover { filter: brightness(1.08); }
+  .meta { margin-top: 12px; color: var(--muted); font-size: .75rem; line-height: 1.45; }
+  .row { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
+  label { font-size: .75rem; color: var(--muted); }
+  input[type=range] { flex: 1; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Shader Stamp Card</h1>
+    <p class="sub">
+      Flapi向け：シェーダー背景＋傾き＋スタンプ押下の軽いインタラクティブカード。
+      着想: <a href="https://shadercn.run/" target="_blank" rel="noopener">shadercn</a> /
+      <a href="https://x.com/kaolti/status/2101335516360647104" target="_blank" rel="noopener">@kaolti</a>
+      （本物の WebGPU レジストリは使わず、静的 canvas シェーダーのみ）
+    </p>
+    <div class="stage">
+      <div class="card" id="card" aria-label="stamp card">
+        <canvas id="bg"></canvas>
+        <div class="glass"></div>
+        <div class="content">
+          <div class="badge">NEARBY STORE</div>
+          <div class="shop" id="shopName">Cafe Flapi</div>
+          <div class="hint">近くにいる間だけ押せる。10個で1杯無料。</div>
+          <div class="stamps" id="stamps"></div>
+        </div>
+      </div>
+    </div>
+    <div class="cta">
+      <button class="primary" id="stampBtn" type="button">スタンプを押す</button>
+      <button id="resetBtn" type="button">リセット</button>
+    </div>
+    <div class="row">
+      <label for="hue">色相</label>
+      <input id="hue" type="range" min="0" max="360" value="168" />
+    </div>
+    <p class="meta">ドラッグで傾く。スタンプはローカルだけ（APIなし）。</p>
+  </div>
+<script>
+(() => {
+  const N = 10;
+  const card = document.getElementById('card');
+  const stampsEl = document.getElementById('stamps');
+  const canvas = document.getElementById('bg');
+  const gl = canvas.getContext('webgl', { antialias: true, alpha: false });
+  const hueInput = document.getElementById('hue');
+  let count = 0;
+  let hue = 168;
+  let mx = 0, my = 0, tx = 0, ty = 0;
+  let t0 = performance.now();
+
+  for (let i = 0; i < N; i++) {
+    const s = document.createElement('div');
+    s.className = 'slot';
+    s.textContent = String(i + 1);
+    s.dataset.i = String(i);
+    stampsEl.appendChild(s);
+  }
+  const slots = [...stampsEl.children];
+
+  function paintSlots() {
+    slots.forEach((el, i) => {
+      const on = i < count;
+      el.classList.toggle('filled', on);
+      el.textContent = on ? '★' : String(i + 1);
+    });
+  }
+
+  function stampOnce() {
+    if (count >= N) return;
+    const el = slots[count];
+    count += 1;
+    paintSlots();
+    el.classList.add('pop');
+    setTimeout(() => el.classList.remove('pop'), 180);
+    if (navigator.vibrate) navigator.vibrate(12);
+  }
+
+  document.getElementById('stampBtn').onclick = stampOnce;
+  document.getElementById('resetBtn').onclick = () => { count = 0; paintSlots(); };
+  hueInput.oninput = () => { hue = Number(hueInput.value); };
+
+  // tilt
+  function setTilt(nx, ny) {
+    tx = nx; ty = ny;
+    card.style.transform = `rotateY(${nx * 12}deg) rotateX(${-ny * 10}deg)`;
+  }
+  card.addEventListener('pointerdown', (e) => {
+    card.setPointerCapture(e.pointerId);
+  });
+  card.addEventListener('pointermove', (e) => {
+    if (e.buttons === 0 && e.pointerType === 'mouse') {
+      const r = card.getBoundingClientRect();
+      const nx = ((e.clientX - r.left) / r.width) * 2 - 1;
+      const ny = ((e.clientY - r.top) / r.height) * 2 - 1;
+      setTilt(nx, ny);
+      return;
+    }
+    if (!card.hasPointerCapture(e.pointerId)) return;
+    const r = card.getBoundingClientRect();
+    const nx = ((e.clientX - r.left) / r.width) * 2 - 1;
+    const ny = ((e.clientY - r.top) / r.height) * 2 - 1;
+    setTilt(Math.max(-1, Math.min(1, nx)), Math.max(-1, Math.min(1, ny)));
+  });
+  card.addEventListener('pointerup', () => setTilt(0, 0));
+  card.addEventListener('pointerleave', () => setTilt(0, 0));
+  card.addEventListener('dblclick', stampOnce);
+
+  // WebGL shader background (fallback to CSS if no GL)
+  if (!gl) {
+    canvas.style.background = 'radial-gradient(circle at 30% 20%, #2dd4bf, #0f766e 45%, #111827)';
+    return;
+  }
+
+  const vs = `
+    attribute vec2 a;
+    void main(){ gl_Position = vec4(a,0.,1.); }
+  `;
+  const fs = `
+    precision highp float;
+    uniform vec2 u_res;
+    uniform float u_t;
+    uniform float u_hue;
+    uniform vec2 u_mouse;
+    vec3 hsl2rgb(float h, float s, float l){
+      float c = (1.-abs(2.*l-1.))*s;
+      float x = c*(1.-abs(mod(h/60.,2.)-1.));
+      float m = l-c/2.;
+      vec3 rgb;
+      if(h<60.) rgb=vec3(c,x,0.);
+      else if(h<120.) rgb=vec3(x,c,0.);
+      else if(h<180.) rgb=vec3(0.,c,x);
+      else if(h<240.) rgb=vec3(0.,x,c);
+      else if(h<300.) rgb=vec3(x,0.,c);
+      else rgb=vec3(c,0.,x);
+      return rgb+m;
+    }
+    float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+    void main(){
+      vec2 uv = gl_FragCoord.xy / u_res;
+      vec2 p = (gl_FragCoord.xy - .5*u_res) / min(u_res.x,u_res.y);
+      p -= u_mouse * .08;
+      float t = u_t;
+      float d = length(p);
+      float a = atan(p.y,p.x);
+      float rings = sin(d*18. - t*1.6 + sin(a*3.+t)*.4)*.5+.5;
+      float caustic = sin((p.x*p.y)*40. + t*2.2)*.5+.5;
+      float grain = hash(gl_FragCoord.xy + t)*.06;
+      float glow = exp(-d*d*2.2);
+      float mixv = mix(rings, caustic, .45) * glow;
+      vec3 c1 = hsl2rgb(u_hue, .72, .42);
+      vec3 c2 = hsl2rgb(mod(u_hue+48.,360.), .65, .22);
+      vec3 c3 = hsl2rgb(mod(u_hue+200.,360.), .55, .55);
+      vec3 col = mix(c2, c1, mixv);
+      col = mix(col, c3, glow*.35);
+      col += grain;
+      col *= .92 + .08*sin(uv.y*40. + t);
+      gl_FragColor = vec4(col, 1.);
+    }
+  `;
+
+  function compile(type, src) {
+    const s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      console.warn(gl.getShaderInfoLog(s));
+      return null;
+    }
+    return s;
+  }
+  const prog = gl.createProgram();
+  const vsh = compile(gl.VERTEX_SHADER, vs);
+  const fsh = compile(gl.FRAGMENT_SHADER, fs);
+  if (!vsh || !fsh) return;
+  gl.attachShader(prog, vsh);
+  gl.attachShader(prog, fsh);
+  gl.linkProgram(prog);
+  gl.useProgram(prog);
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, 'a');
+  gl.enableVertexAttribArray(loc);
+  gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const uRes = gl.getUniformLocation(prog, 'u_res');
+  const uT = gl.getUniformLocation(prog, 'u_t');
+  const uHue = gl.getUniformLocation(prog, 'u_hue');
+  const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+
+  function resize() {
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    const r = card.getBoundingClientRect();
+    canvas.width = Math.max(2, Math.floor(r.width * dpr));
+    canvas.height = Math.max(2, Math.floor(r.height * dpr));
+    gl.viewport(0, 0, canvas.width, canvas.height);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  function frame(now) {
+    mx += (tx - mx) * .12;
+    my += (ty - my) * .12;
+    gl.uniform2f(uRes, canvas.width, canvas.height);
+    gl.uniform1f(uT, (now - t0) / 1000);
+    gl.uniform1f(uHue, hue);
+    gl.uniform2f(uMouse, mx, my);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  paintSlots();
+})();
+</script>
+</body>
+</html>

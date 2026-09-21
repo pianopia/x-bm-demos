@@ -4,6 +4,18 @@
   "github": "https://github.com/pianopia/x-bm-demos",
   "demos": [
     {
+      "id": "shader-stamp-card-2026-09-21",
+      "title": "Shader Stamp Card",
+      "date": "2026-09-21",
+      "path": "./shader-stamp-card-2026-09-21/",
+      "tags": [
+        "Flapi",
+        "WebGL",
+        "UI"
+      ],
+      "blurb": "店舗スタンプカードにシェーダー背景＋傾き＋押下。shadercn/インタラクティブカード着想の静的トイ。"
+    },
+    {
       "id": "jev-flapi-lab-2026-09-19",
       "title": "Jev-shaped lab (free mock) × Flapi",
       "date": "2026-09-19",
