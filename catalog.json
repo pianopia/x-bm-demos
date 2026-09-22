@@ -4,6 +4,18 @@
   "github": "https://github.com/pianopia/x-bm-demos",
   "demos": [
     {
+      "id": "comment-motion-toy-2026-09-22",
+      "title": "Comment → Motion Toy",
+      "date": "2026-09-22",
+      "path": "./comment-motion-toy-2026-09-22/",
+      "tags": [
+        "BELENUS",
+        "UX",
+        "live"
+      ],
+      "blurb": "ARDY Mini着想。コメント文言→モーションの感触だけ触る静的トイ（本物モデルなし）。"
+    },
+    {
       "id": "shader-stamp-card-2026-09-21",
       "title": "Shader Stamp Card",
       "date": "2026-09-21",

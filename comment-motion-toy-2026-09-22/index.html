@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Comment → Motion Toy — BELENUS / live UX</title>
+<style>
+  :root { color-scheme: dark; --ink:#eef3f9; --muted:#93a4b6; --line:#2a3544; --accent:#7dd3fc; --hot:#fb7185; --ok:#86efac; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; font-family: ui-sans-serif, system-ui, "Hiragino Sans", sans-serif;
+    background: radial-gradient(900px 420px at 20% -10%, #1a2a3a, #0b1016 55%);
+    color: var(--ink); padding: 24px 16px 48px;
+  }
+  .wrap { width: min(920px, 100%); margin: 0 auto; display: grid; gap: 16px; grid-template-columns: 1.1fr .9fr; }
+  @media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } }
+  h1 { font-size: 1.1rem; margin: 0 0 6px; }
+  .sub { color: var(--muted); font-size: .82rem; line-height: 1.55; margin: 0 0 12px; }
+  .sub a { color: var(--accent); }
+  .panel {
+    background: #121820; border: 1px solid var(--line); border-radius: 18px; padding: 14px;
+  }
+  .stage {
+    position: relative; height: 360px; border-radius: 14px; overflow: hidden;
+    background:
+      linear-gradient(180deg, transparent 62%, rgba(0,0,0,.35)),
+      radial-gradient(ellipse at 50% 78%, #234 0%, #0e1520 70%);
+    border: 1px solid #243041;
+  }
+  .floor {
+    position: absolute; left: 8%; right: 8%; bottom: 14%; height: 10px;
+    border-radius: 50%; background: rgba(125,211,252,.12); filter: blur(1px);
+  }
+  .char {
+    position: absolute; left: 50%; bottom: 18%; width: 84px; height: 160px;
+    transform: translateX(-50%); transform-origin: 50% 100%;
+    transition: transform .18s ease-out;
+  }
+  .head {
+    position: absolute; left: 50%; top: 8px; width: 44px; height: 44px; margin-left: -22px;
+    border-radius: 50%; background: linear-gradient(145deg, #fde68a, #f59e0b);
+    box-shadow: inset -6px -8px 0 rgba(0,0,0,.12);
+  }
+  .eye {
+    position: absolute; top: 18px; width: 6px; height: 8px; border-radius: 50%; background: #1f2937;
+  }
+  .eye.l { left: 12px; } .eye.r { right: 12px; }
+  .body {
+    position: absolute; left: 50%; top: 52px; width: 38px; height: 58px; margin-left: -19px;
+    border-radius: 12px; background: linear-gradient(180deg, #38bdf8, #0369a1);
+  }
+  .arm, .leg {
+    position: absolute; background: #94a3b8; border-radius: 8px; transform-origin: top center;
+  }
+  .arm { width: 12px; height: 46px; top: 56px; }
+  .arm.l { left: 8px; } .arm.r { right: 8px; }
+  .leg { width: 14px; height: 52px; top: 106px; background: #64748b; }
+  .leg.l { left: 24px; } .leg.r { right: 24px; }
+
+  .char.wave .arm.r { animation: wave 0.55s ease-in-out 3; }
+  .char.jump { animation: jump 0.55s cubic-bezier(.2,1.3,.3,1); }
+  .char.bow { animation: bow 0.7s ease-in-out; }
+  .char.spin { animation: spin 0.8s ease-in-out; }
+  .char.dance { animation: dance 0.9s ease-in-out 2; }
+  .char.idle .arm.l, .char.idle .arm.r { animation: breathe 2.4s ease-in-out infinite; }
+
+  @keyframes wave {
+    0%,100% { transform: rotate(10deg); }
+    50% { transform: rotate(-70deg); }
+  }
+  @keyframes jump {
+    0%,100% { transform: translateX(-50%) translateY(0); }
+    40% { transform: translateX(-50%) translateY(-54px); }
+    70% { transform: translateX(-50%) translateY(-8px); }
+  }
+  @keyframes bow {
+    0%,100% { transform: translateX(-50%) rotate(0deg); }
+    45% { transform: translateX(-50%) rotate(28deg); }
+  }
+  @keyframes spin {
+    0% { transform: translateX(-50%) rotateY(0deg); }
+    100% { transform: translateX(-50%) rotateY(360deg); }
+  }
+  @keyframes dance {
+    0%,100% { transform: translateX(-50%) rotate(-4deg); }
+    25% { transform: translateX(calc(-50% - 10px)) rotate(6deg); }
+    75% { transform: translateX(calc(-50% + 10px)) rotate(-6deg); }
+  }
+  @keyframes breathe {
+    0%,100% { transform: rotate(4deg); }
+    50% { transform: rotate(-6deg); }
+  }
+
+  .badge {
+    position: absolute; top: 12px; left: 12px; font-size: .68rem; font-weight: 700;
+    padding: 5px 10px; border-radius: 999px; background: rgba(0,0,0,.45);
+    border: 1px solid rgba(255,255,255,.14); color: var(--accent);
+  }
+  .motion-label {
+    position: absolute; top: 12px; right: 12px; font-size: .72rem; color: var(--ok);
+    background: rgba(0,0,0,.4); padding: 5px 10px; border-radius: 999px; border: 1px solid #234;
+  }
+  .feed {
+    display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow: auto;
+    margin-top: 4px;
+  }
+  .msg {
+    font-size: .8rem; line-height: 1.4; padding: 8px 10px; border-radius: 12px;
+    background: #0d141d; border: 1px solid #243041;
+  }
+  .msg .who { color: var(--accent); font-weight: 700; margin-right: 6px; }
+  .msg.hit { border-color: #fb718588; box-shadow: inset 0 0 0 1px #fb718522; }
+  .msg .tag {
+    display: inline-block; margin-left: 6px; font-size: .65rem; color: var(--hot);
+    border: 1px solid #fb718555; border-radius: 999px; padding: 1px 7px;
+  }
+  .composer { display: flex; gap: 8px; margin-top: 10px; }
+  input, select, button {
+    appearance: none; border-radius: 999px; border: 1px solid var(--line);
+    background: #151c26; color: var(--ink); font-size: .82rem; padding: 9px 12px;
+  }
+  input { flex: 1; min-width: 0; }
+  button { cursor: pointer; background: #0e3a4a; border-color: #38bdf8; color: #e0f2fe; white-space: nowrap; }
+  button:hover { filter: brightness(1.08); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .chip {
+    font-size: .72rem; padding: 5px 10px; border-radius: 999px; cursor: pointer;
+    background: #0b1220; border: 1px solid #2a3a4d; color: var(--muted);
+  }
+  .chip:hover { border-color: var(--accent); color: var(--ink); }
+  .map {
+    margin-top: 10px; font-size: .74rem; color: var(--muted); line-height: 1.55;
+  }
+  .map code { color: var(--accent); font-size: .72rem; }
+  .meta { grid-column: 1 / -1; color: var(--muted); font-size: .75rem; line-height: 1.5; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="panel">
+      <h1>Comment → Motion Toy</h1>
+      <p class="sub">ARDY Mini 着想の<strong>UXモック</strong>。本物の拡散モデルは使わず、コメント文言→モーション名のマッピングだけを触る。BELENUS のライブ／配信キャラや AITuber 導線の感触確認用。</p>
+      <div class="stage" id="stage">
+        <div class="badge">live mock</div>
+        <div class="motion-label" id="motionLabel">idle</div>
+        <div class="floor"></div>
+        <div class="char idle" id="char" aria-label="toy character">
+          <div class="head"><span class="eye l"></span><span class="eye r"></span></div>
+          <div class="body"></div>
+          <div class="arm l"></div>
+          <div class="arm r"></div>
+          <div class="leg l"></div>
+          <div class="leg r"></div>
+        </div>
+      </div>
+      <p class="map">ルール例: <code>手振|wave</code> → wave / <code>ジャンプ|jump</code> → jump / <code>お辞儀|bow</code> → bow / <code>回|spin</code> → spin / <code>踊|dance</code> → dance</p>
+    </section>
+
+    <section class="panel">
+      <h1 style="font-size:1rem;margin:0 0 8px">コメント欄</h1>
+      <div class="feed" id="feed" aria-live="polite"></div>
+      <div class="composer">
+        <input id="input" placeholder="コメントを入れる…" maxlength="80" />
+        <button id="send" type="button">送信</button>
+      </div>
+      <div class="chips" id="chips"></div>
+      <p class="map" style="margin-top:12px">自動でフェイクコメントも流す。ヒットした行はピンク枠。</p>
+    </section>
+
+    <p class="meta">着想: <a href="https://x.com/ishitaku39/status/2102038146489946532" style="color:var(--accent)">@ishitaku39 / ARDY Mini</a> · 本物は <a href="https://github.com/intsuc/ardy-mini" style="color:var(--accent)">intsuc/ardy-mini</a>（GPU要）。このページは静的トイのみ。</p>
+  </div>
+<script>
+(function () {
+  const RULES = [
+    { re: /手振|wave|こんにちは|hello/i, motion: "wave" },
+    { re: /ジャンプ|jump|跳/i, motion: "jump" },
+    { re: /お辞儀|bow|よろしく/i, motion: "bow" },
+    { re: /回|spin|回せ/i, motion: "spin" },
+    { re: /踊|dance|ダンス/i, motion: "dance" },
+  ];
+  const FAKE = [
+    { who: "viewer_a", text: "手振って！" },
+    { who: "viewer_b", text: "かわいい" },
+    { who: "viewer_c", text: "ジャンプして" },
+    { who: "viewer_d", text: "お辞儀お願い" },
+    { who: "viewer_e", text: "今日も配信ありがとう" },
+    { who: "viewer_f", text: "踊って〜" },
+    { who: "viewer_g", text: "一回転！" },
+    { who: "viewer_h", text: " bellenus 好き" },
+  ];
+  const PRESETS = ["手振って", "ジャンプ", "お辞儀", "一回転", "ダンスお願い", "おはよう"];
+
+  const char = document.getElementById("char");
+  const label = document.getElementById("motionLabel");
+  const feed = document.getElementById("feed");
+  const input = document.getElementById("input");
+  const chips = document.getElementById("chips");
+  let busy = false;
+  let timer = null;
+
+  function matchMotion(text) {
+    for (const r of RULES) if (r.re.test(text)) return r.motion;
+    return null;
+  }
+
+  function play(motion) {
+    if (!motion) return;
+    busy = true;
+    char.className = "char " + motion;
+    label.textContent = motion;
+    clearTimeout(timer);
+    timer = setTimeout(function () {
+      char.className = "char idle";
+      label.textContent = "idle";
+      busy = false;
+    }, motion === "dance" ? 1800 : 900);
+  }
+
+  function addMsg(who, text, hit) {
+    const el = document.createElement("div");
+    el.className = "msg" + (hit ? " hit" : "");
+    el.innerHTML = '<span class="who">@' + who + "</span>" + escapeHtml(text) +
+      (hit ? '<span class="tag">' + hit + "</span>" : "");
+    feed.prepend(el);
+    while (feed.children.length > 24) feed.removeChild(feed.lastChild);
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c];
+    });
+  }
+
+  function handle(who, text) {
+    const motion = matchMotion(text);
+    addMsg(who, text, motion);
+    if (motion && !busy) play(motion);
+    else if (motion && busy) {
+      // queue briefly
+      setTimeout(function () { if (!busy) play(motion); }, 950);
+    }
+  }
+
+  document.getElementById("send").addEventListener("click", function () {
+    const t = input.value.trim();
+    if (!t) return;
+    handle("you", t);
+    input.value = "";
+    input.focus();
+  });
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") document.getElementById("send").click();
+  });
+
+  PRESETS.forEach(function (p) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "chip";
+    b.textContent = p;
+    b.addEventListener("click", function () { handle("you", p); });
+    chips.appendChild(b);
+  });
+
+  // seed + auto fake comments
+  handle("system", "コメントでモーションが切り替わる感触を試してね");
+  let i = 0;
+  setInterval(function () {
+    const f = FAKE[i % FAKE.length];
+    i += 1;
+    handle(f.who, f.text);
+  }, 3200);
+})();
+</script>
+</body>
+</html>
