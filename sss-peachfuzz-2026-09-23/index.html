@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SSS + peach fuzz look-dev (three.js toy)</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #07080c; font-family: ui-sans-serif, system-ui, "Hiragino Sans", sans-serif; overflow: hidden; }
+  #c { display: block; width: 100%; height: 100%; }
+  .hud {
+    position: fixed; left: 12px; bottom: 12px; right: 12px; max-width: 440px;
+    background: rgba(12,14,20,.82); border: 1px solid rgba(255,255,255,.12);
+    border-radius: 12px; padding: 12px 14px; color: #e8ecf4; backdrop-filter: blur(8px);
+    font-size: 13px; line-height: 1.45; z-index: 2;
+  }
+  .hud h1 { margin: 0 0 6px; font-size: 14px; font-weight: 650; }
+  .hud p { margin: 0 0 8px; color: #aeb6c8; }
+  .note { font-size: 11.5px; color: #8b95a8; margin: 0 0 10px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 4px 0; }
+  label { display: flex; gap: 6px; align-items: center; cursor: pointer; color: #c8d0e0; }
+  input[type=range] { width: 110px; }
+  a { color: #8ec5ff; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud">
+  <h1>SSS · peach fuzz · cornea (look toy)</h1>
+  <p>ブラウザのみのキャラ見た目試作。疑似SSS＋産毛リム＋屈折角膜＋浅いDOF。</p>
+  <p class="note">LOOK toy — not production SSS. No Blender/Marmoset. BELENUS FF-style look-dev before UE.</p>
+  <div class="row">
+    <label>SSS <input type="range" id="sss" min="0" max="100" value="70" /></label>
+    <label>fuzz <input type="range" id="fuzz" min="0" max="100" value="45" /></label>
+    <label>f-stop <input type="range" id="fstop" min="0" max="100" value="35" /></label>
+  </div>
+  <div class="row">
+    <label><input type="checkbox" id="eye" checked /> refractive eye</label>
+  </div>
+</div>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { BokehPass } from 'three/addons/postprocessing/BokehPass.js';
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x07080c);
+scene.fog = new THREE.FogExp2(0x07080c, 0.08);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 40);
+camera.position.set(0.55, 0.35, 3.2);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.target.set(0, 0.05, 0);
+controls.minDistance = 1.6;
+controls.maxDistance = 6;
+
+// Lights — soft key + cool rim (cinematic)
+const hemi = new THREE.HemisphereLight(0xc8d6ff, 0x2a1810, 0.55);
+scene.add(hemi);
+const key = new THREE.DirectionalLight(0xffe0c2, 2.4);
+key.position.set(2.8, 3.2, 2.2);
+scene.add(key);
+const fill = new THREE.DirectionalLight(0x88aaff, 0.55);
+fill.position.set(-2.5, 1.2, 1.5);
+scene.add(fill);
+const rimL = new THREE.PointLight(0xffb088, 1.6, 12);
+rimL.position.set(-1.8, 0.6, -1.4);
+scene.add(rimL);
+
+// Soft ground disc
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(4.5, 64),
+  new THREE.MeshStandardMaterial({ color: 0x10131a, roughness: 0.92, metalness: 0.05 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -1.05;
+scene.add(ground);
+
+// --- Fake SSS skin shader (wrap + red bleed + soft Fresnel) ---
+const skinVert = /* glsl */`
+varying vec3 vN;
+varying vec3 vWPos;
+varying vec3 vView;
+void main() {
+  vec4 wp = modelMatrix * vec4(position, 1.0);
+  vWPos = wp.xyz;
+  vN = normalize(mat3(modelMatrix) * normal);
+  vView = cameraPosition - wp.xyz;
+  gl_Position = projectionMatrix * viewMatrix * wp;
+}
+`;
+
+const skinFrag = /* glsl */`
+uniform vec3 uSkin;
+uniform vec3 uScatter;
+uniform float uSSS;
+uniform vec3 uKeyDir;
+uniform vec3 uKeyCol;
+uniform vec3 uFillDir;
+uniform vec3 uFillCol;
+uniform vec3 uRimDir;
+uniform vec3 uRimCol;
+varying vec3 vN;
+varying vec3 vWPos;
+varying vec3 vView;
+
+float wrapDiffuse(vec3 n, vec3 l, float w) {
+  return max(0.0, (dot(n, l) + w) / (1.0 + w));
+}
+
+void main() {
+  vec3 n = normalize(vN);
+  vec3 v = normalize(vView);
+  float ndv = max(0.0, dot(n, v));
+
+  // Wrapped lighting = soft subsurface feel
+  float wrap = mix(0.15, 0.72, uSSS);
+  float kd = wrapDiffuse(n, normalize(uKeyDir), wrap);
+  float fd = wrapDiffuse(n, normalize(uFillDir), wrap * 0.7);
+  float rd = wrapDiffuse(n, normalize(uRimDir), wrap * 0.5);
+
+  // Red/amber bleed when light wraps past the terminator
+  float scatterAmt = pow(1.0 - ndv, 1.8) * uSSS;
+  float backlit = pow(max(0.0, -dot(n, normalize(uKeyDir)) * 0.5 + 0.5), 2.2) * uSSS;
+  vec3 scatter = uScatter * (scatterAmt * 0.55 + backlit * 0.85);
+
+  vec3 diffuse = uSkin * (kd * uKeyCol + fd * uFillCol * 0.55 + rd * uRimCol * 0.35);
+  // Soft specular (skin-ish)
+  vec3 h = normalize(normalize(uKeyDir) + v);
+  float spec = pow(max(0.0, dot(n, h)), 48.0) * 0.18;
+  // Rim glow (slightly warm)
+  float fres = pow(1.0 - ndv, 3.2);
+  vec3 rim = mix(vec3(0.85, 0.55, 0.42), vec3(0.55, 0.7, 1.0), 0.35) * fres * (0.25 + 0.45 * uSSS);
+
+  vec3 col = diffuse + scatter + rim + vec3(spec);
+  // Mild tone curve
+  col = col / (col + vec3(0.9)) * 1.15;
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+const skinMat = new THREE.ShaderMaterial({
+  uniforms: {
+    uSkin: { value: new THREE.Color(0xe8b89a) },
+    uScatter: { value: new THREE.Color(0xd45a3c) },
+    uSSS: { value: 0.7 },
+    uKeyDir: { value: key.position.clone().normalize() },
+    uKeyCol: { value: new THREE.Color(0xffe0c2).multiplyScalar(1.1) },
+    uFillDir: { value: fill.position.clone().normalize() },
+    uFillCol: { value: new THREE.Color(0x88aaff).multiplyScalar(0.7) },
+    uRimDir: { value: rimL.position.clone().normalize() },
+    uRimCol: { value: new THREE.Color(0xffb088).multiplyScalar(0.9) },
+  },
+  vertexShader: skinVert,
+  fragmentShader: skinFrag,
+});
+
+// Head-like form: sphere + slight jaw squash via scale
+const head = new THREE.Mesh(new THREE.SphereGeometry(1, 96, 96), skinMat);
+head.scale.set(0.92, 1.05, 0.95);
+head.position.y = 0.08;
+scene.add(head);
+
+// Soft cheek suggestion (smaller overlapping sphere, same mat)
+const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.38, 48, 48), skinMat);
+cheek.position.set(0.55, -0.15, 0.55);
+cheek.scale.set(1.1, 0.85, 0.9);
+scene.add(cheek);
+const cheek2 = cheek.clone();
+cheek2.position.x *= -1;
+scene.add(cheek2);
+
+// --- Peach fuzz: additive rim shell ---
+const fuzzVert = /* glsl */`
+varying vec3 vN;
+varying vec3 vView;
+void main() {
+  vec3 pos = position + normal * 0.018;
+  vec4 wp = modelMatrix * vec4(pos, 1.0);
+  vN = normalize(mat3(modelMatrix) * normal);
+  vView = cameraPosition - wp.xyz;
+  gl_Position = projectionMatrix * viewMatrix * wp;
+}
+`;
+const fuzzFrag = /* glsl */`
+uniform float uFuzz;
+varying vec3 vN;
+varying vec3 vView;
+void main() {
+  vec3 n = normalize(vN);
+  vec3 v = normalize(vView);
+  float ndv = max(0.0, dot(n, v));
+  float rim = pow(1.0 - ndv, 2.4);
+  // Soft hair-like tint
+  vec3 tint = vec3(0.92, 0.78, 0.68);
+  float a = rim * uFuzz * 0.55;
+  if (a < 0.01) discard;
+  gl_FragColor = vec4(tint * a, a);
+}
+`;
+const fuzzMat = new THREE.ShaderMaterial({
+  uniforms: { uFuzz: { value: 0.45 } },
+  vertexShader: fuzzVert,
+  fragmentShader: fuzzFrag,
+  transparent: true,
+  depthWrite: false,
+  blending: THREE.AdditiveBlending,
+  side: THREE.FrontSide,
+});
+const fuzz = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 64), fuzzMat);
+fuzz.scale.copy(head.scale);
+fuzz.position.copy(head.position);
+scene.add(fuzz);
+
+// --- Refractive cornea (simple eye orb) ---
+const eyeGroup = new THREE.Group();
+eyeGroup.position.set(0.32, 0.22, 0.78);
+scene.add(eyeGroup);
+
+const iris = new THREE.Mesh(
+  new THREE.SphereGeometry(0.11, 32, 32),
+  new THREE.MeshStandardMaterial({
+    color: 0x3a5a7a, roughness: 0.35, metalness: 0.15,
+    emissive: 0x0a1520, emissiveIntensity: 0.25,
+  })
+);
+iris.scale.set(1, 1, 0.55);
+eyeGroup.add(iris);
+
+const pupil = new THREE.Mesh(
+  new THREE.SphereGeometry(0.045, 24, 24),
+  new THREE.MeshStandardMaterial({ color: 0x050508, roughness: 0.4 })
+);
+pupil.position.z = 0.035;
+eyeGroup.add(pupil);
+
+const cornea = new THREE.Mesh(
+  new THREE.SphereGeometry(0.125, 48, 48),
+  new THREE.MeshPhysicalMaterial({
+    color: 0xffffff,
+    metalness: 0,
+    roughness: 0.05,
+    transmission: 0.92,
+    thickness: 0.35,
+    ior: 1.4,
+    transparent: true,
+    opacity: 1,
+    clearcoat: 1,
+    clearcoatRoughness: 0.05,
+  })
+);
+eyeGroup.add(cornea);
+
+const eyeHighlight = new THREE.Mesh(
+  new THREE.SphereGeometry(0.018, 12, 12),
+  new THREE.MeshBasicMaterial({ color: 0xffffff })
+);
+eyeHighlight.position.set(0.04, 0.04, 0.11);
+eyeGroup.add(eyeHighlight);
+
+const eyeL = eyeGroup.clone();
+eyeL.position.x = -0.32;
+scene.add(eyeL);
+
+// Subtle brow ridge
+const brow = new THREE.Mesh(
+  new THREE.TorusGeometry(0.22, 0.035, 12, 32, Math.PI),
+  skinMat
+);
+brow.position.set(0.32, 0.42, 0.72);
+brow.rotation.set(0.35, 0.15, -0.15);
+brow.scale.set(1, 0.6, 1);
+scene.add(brow);
+const browL = brow.clone();
+browL.position.x = -0.32;
+browL.rotation.y *= -1;
+browL.rotation.z *= -1;
+scene.add(browL);
+
+// Post: mild Bokeh DOF
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bokehPass = new BokehPass(scene, camera, {
+  focus: 3.0,
+  aperture: 0.00022,
+  maxblur: 0.008,
+});
+composer.addPass(bokehPass);
+
+const elSSS = document.getElementById('sss');
+const elFuzz = document.getElementById('fuzz');
+const elFstop = document.getElementById('fstop');
+const elEye = document.getElementById('eye');
+
+function syncUI() {
+  skinMat.uniforms.uSSS.value = elSSS.value / 100;
+  fuzzMat.uniforms.uFuzz.value = elFuzz.value / 100;
+  const f = elFstop.value / 100;
+  bokehPass.uniforms['aperture'].value = 0.00005 + f * 0.00045;
+  bokehPass.uniforms['maxblur'].value = 0.002 + f * 0.012;
+  eyeGroup.visible = elEye.checked;
+  eyeL.visible = elEye.checked;
+}
+elSSS.oninput = elFuzz.oninput = elFstop.oninput = elEye.onchange = syncUI;
+syncUI();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+});
+
+function tick() {
+  requestAnimationFrame(tick);
+  controls.update();
+  // Keep focus near head center
+  const dist = camera.position.distanceTo(controls.target);
+  bokehPass.uniforms['focus'].value = dist;
+  composer.render();
+}
+tick();
+</script>
+</body>
+</html>
