@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AI referral dashboard (mock) — x-bm-demos</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b1220;
+    --card: #141c2b;
+    --ink: #e8eef5;
+    --muted: #8b9aab;
+    --accent: #5eead4;
+    --line: #243044;
+    --shop: #fbbf24;
+    --chatgpt: #10a37f;
+    --claude: #d97757;
+    --perplexity: #20b8cd;
+    --gemini: #8ab4f8;
+    --copilot: #7c3aed;
+    --other: #64748b;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    background:
+      radial-gradient(900px 420px at 12% -8%, #163a36 0%, transparent 55%),
+      radial-gradient(700px 380px at 92% 8%, #1a2740 0%, transparent 50%),
+      var(--bg);
+    color: var(--ink);
+    min-height: 100vh;
+    padding: 24px 16px 56px;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; }
+  .note {
+    background: #132018;
+    border: 1px solid #1f4a3a;
+    color: #9fd6c4;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: .84rem;
+    line-height: 1.5;
+    margin-bottom: 18px;
+  }
+  header h1 { font-size: 1.35rem; margin: 0 0 6px; letter-spacing: .01em; }
+  header .sub { margin: 0 0 18px; color: var(--muted); font-size: .9rem; line-height: 1.5; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+  .chip {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: #0f1724;
+    color: var(--ink);
+    border-radius: 999px;
+    padding: 8px 14px;
+    font-size: .86rem;
+    cursor: pointer;
+    transition: border-color .15s, background .15s, color .15s;
+  }
+  .chip:hover { border-color: var(--accent); }
+  .chip.active {
+    background: #12352f;
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+  @media (max-width: 640px) {
+    .stats { grid-template-columns: 1fr; }
+    .panels { grid-template-columns: 1fr !important; }
+  }
+  .stat {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px 16px;
+  }
+  .stat .label { font-size: .72rem; color: var(--muted); margin-bottom: 4px; }
+  .stat .value { font-size: 1.35rem; font-weight: 700; letter-spacing: .02em; }
+  .stat .delta { font-size: .75rem; color: var(--accent); margin-top: 4px; }
+  .panels {
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 16px;
+  }
+  .card h2 {
+    margin: 0 0 14px;
+    font-size: .95rem;
+    font-weight: 650;
+  }
+  .donut-wrap {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+  }
+  .donut {
+    width: 160px;
+    height: 160px;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .donut svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .donut-center {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    text-align: center;
+    pointer-events: none;
+  }
+  .donut-center .n { font-size: 1.2rem; font-weight: 700; }
+  .donut-center .t { font-size: .68rem; color: var(--muted); }
+  .legend { list-style: none; margin: 0; padding: 0; flex: 1; min-width: 140px; }
+  .legend li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: .8rem;
+    padding: 4px 0;
+    color: var(--muted);
+  }
+  .swatch {
+    width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0;
+  }
+  .legend .pct { margin-left: auto; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .bars { display: flex; flex-direction: column; gap: 10px; }
+  .bar-row .meta {
+    display: flex; justify-content: space-between; gap: 8px;
+    font-size: .8rem; margin-bottom: 4px;
+  }
+  .bar-row .meta .name { color: var(--ink); }
+  .bar-row .meta .num { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .track {
+    height: 8px; border-radius: 999px; background: #0b1220; overflow: hidden;
+  }
+  .fill { height: 100%; border-radius: 999px; width: 0; transition: width .35s ease; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .82rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 6px;
+    border-bottom: 1px solid var(--line);
+  }
+  th { color: var(--muted); font-weight: 550; font-size: .72rem; }
+  td code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .78rem;
+    color: var(--accent);
+  }
+  .src-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: .7rem;
+    background: #0b1220;
+    border: 1px solid var(--line);
+  }
+  footer {
+    margin-top: 22px;
+    color: var(--muted);
+    font-size: .78rem;
+    line-height: 1.5;
+  }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="note">静的モック・実計測なし。Open Analytics v0.8.0 着想</div>
+
+  <header>
+    <h1>AI referral dashboard (mock)</h1>
+    <p class="sub">ChatGPT / Claude / Perplexity など AI 経由の流入を、製品別のダミー数値で眺める試作。Flapi・tategaki・Midnote の「AI からどう来るか」を考えるための UI スケッチ。</p>
+  </header>
+
+  <div class="chips" role="tablist" aria-label="製品切替">
+    <button type="button" class="chip active" data-product="flapi" aria-pressed="true">Flapi</button>
+    <button type="button" class="chip" data-product="tategaki" aria-pressed="false">tategaki</button>
+    <button type="button" class="chip" data-product="midnote" aria-pressed="false">Midnote</button>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="label">AI 経由セッション（仮）</div>
+      <div class="value" id="stat-ai">—</div>
+      <div class="delta" id="stat-ai-delta">—</div>
+    </div>
+    <div class="stat">
+      <div class="label">全体セッション（仮）</div>
+      <div class="value" id="stat-all">—</div>
+      <div class="delta" id="stat-share">—</div>
+    </div>
+    <div class="stat">
+      <div class="label">トップ AI ソース</div>
+      <div class="value" id="stat-top" style="font-size:1.05rem">—</div>
+      <div class="delta" id="stat-top-pct">—</div>
+    </div>
+  </div>
+
+  <div class="panels">
+    <section class="card">
+      <h2>流入ソース内訳</h2>
+      <div class="donut-wrap">
+        <div class="donut">
+          <svg viewBox="0 0 36 36" id="donut-svg" aria-hidden="true"></svg>
+          <div class="donut-center">
+            <div class="n" id="donut-total">0</div>
+            <div class="t">visits</div>
+          </div>
+        </div>
+        <ul class="legend" id="legend"></ul>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>ソース別バー</h2>
+      <div class="bars" id="bars"></div>
+    </section>
+  </div>
+
+  <section class="card">
+    <h2>サンプル referrer 文字列</h2>
+    <div style="overflow-x:auto">
+      <table>
+        <thead>
+          <tr>
+            <th>ソース</th>
+            <th>referrer / host</th>
+            <th>例（ダミー）</th>
+            <th>件数</th>
+          </tr>
+        </thead>
+        <tbody id="ref-table"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <a href="../">← x-bm-demos カタログ</a>
+    · 有料 API / 実アナリティクスなし。数値は製品チップ切替用の固定ダミーです。
+  </footer>
+</div>
+
+<script>
+(function () {
+  const COLORS = {
+    ChatGPT: "var(--chatgpt)",
+    Claude: "var(--claude)",
+    Perplexity: "var(--perplexity)",
+    Gemini: "var(--gemini)",
+    Copilot: "var(--copilot)",
+    "Direct/Other": "var(--other)"
+  };
+
+  const PRODUCTS = {
+    flapi: {
+      label: "Flapi",
+      aiSessions: 4280,
+      allSessions: 18640,
+      aiDelta: "+18% WoW（仮）",
+      sources: [
+        { name: "ChatGPT", visits: 1620 },
+        { name: "Claude", visits: 780 },
+        { name: "Perplexity", visits: 640 },
+        { name: "Gemini", visits: 410 },
+        { name: "Copilot", visits: 290 },
+        { name: "Direct/Other", visits: 540 }
+      ],
+      referrers: [
+        { src: "ChatGPT", host: "chatgpt.com", sample: "https://chatgpt.com/", n: 980 },
+        { src: "ChatGPT", host: "chat.openai.com", sample: "https://chat.openai.com/", n: 640 },
+        { src: "Claude", host: "claude.ai", sample: "https://claude.ai/chat", n: 780 },
+        { src: "Perplexity", host: "perplexity.ai", sample: "https://www.perplexity.ai/", n: 640 },
+        { src: "Gemini", host: "gemini.google.com", sample: "https://gemini.google.com/app", n: 410 },
+        { src: "Copilot", host: "copilot.microsoft.com", sample: "https://copilot.microsoft.com/", n: 290 }
+      ]
+    },
+    tategaki: {
+      label: "tategaki",
+      aiSessions: 2140,
+      allSessions: 9720,
+      aiDelta: "+9% WoW（仮）",
+      sources: [
+        { name: "ChatGPT", visits: 520 },
+        { name: "Claude", visits: 690 },
+        { name: "Perplexity", visits: 310 },
+        { name: "Gemini", visits: 180 },
+        { name: "Copilot", visits: 120 },
+        { name: "Direct/Other", visits: 320 }
+      ],
+      referrers: [
+        { src: "Claude", host: "claude.ai", sample: "https://claude.ai/new", n: 690 },
+        { src: "ChatGPT", host: "chatgpt.com", sample: "https://chatgpt.com/?q=縦書き", n: 390 },
+        { src: "ChatGPT", host: "chat.openai.com", sample: "https://chat.openai.com/", n: 130 },
+        { src: "Perplexity", host: "perplexity.ai", sample: "https://www.perplexity.ai/search", n: 310 },
+        { src: "Gemini", host: "gemini.google.com", sample: "https://gemini.google.com/", n: 180 },
+        { src: "Copilot", host: "copilot.microsoft.com", sample: "https://copilot.microsoft.com/", n: 120 }
+      ]
+    },
+    midnote: {
+      label: "Midnote",
+      aiSessions: 1560,
+      allSessions: 6430,
+      aiDelta: "+24% WoW（仮）",
+      sources: [
+        { name: "ChatGPT", visits: 480 },
+        { name: "Claude", visits: 350 },
+        { name: "Perplexity", visits: 420 },
+        { name: "Gemini", visits: 140 },
+        { name: "Copilot", visits: 70 },
+        { name: "Direct/Other", visits: 100 }
+      ],
+      referrers: [
+        { src: "ChatGPT", host: "chatgpt.com", sample: "https://chatgpt.com/", n: 480 },
+        { src: "Perplexity", host: "perplexity.ai", sample: "https://www.perplexity.ai/", n: 420 },
+        { src: "Claude", host: "claude.ai", sample: "https://claude.ai/", n: 350 },
+        { src: "Gemini", host: "gemini.google.com", sample: "https://gemini.google.com/app", n: 140 },
+        { src: "Copilot", host: "copilot.microsoft.com", sample: "https://copilot.microsoft.com/", n: 70 },
+        { src: "Direct/Other", host: "(none)", sample: "—", n: 100 }
+      ]
+    }
+  };
+
+  const R = 15.9155; // ~100 circumference for stroke-dasharray %
+
+  function fmt(n) {
+    return n.toLocaleString("ja-JP");
+  }
+
+  function render(productKey) {
+    const p = PRODUCTS[productKey];
+    const total = p.sources.reduce((s, x) => s + x.visits, 0);
+    const top = [...p.sources].sort((a, b) => b.visits - a.visits)[0];
+    const share = ((p.aiSessions / p.allSessions) * 100).toFixed(1);
+
+    document.getElementById("stat-ai").textContent = fmt(p.aiSessions);
+    document.getElementById("stat-ai-delta").textContent = p.aiDelta;
+    document.getElementById("stat-all").textContent = fmt(p.allSessions);
+    document.getElementById("stat-share").textContent = "AI 比率 " + share + "%（仮）";
+    document.getElementById("stat-top").textContent = top.name;
+    document.getElementById("stat-top-pct").textContent =
+      fmt(top.visits) + " · " + ((top.visits / total) * 100).toFixed(0) + "% of AI/Other mix";
+    document.getElementById("donut-total").textContent = fmt(total);
+
+    // Donut
+    let offset = 0;
+    const svg = document.getElementById("donut-svg");
+    svg.innerHTML = "";
+    const bg = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    bg.setAttribute("cx", "18");
+    bg.setAttribute("cy", "18");
+    bg.setAttribute("r", String(R));
+    bg.setAttribute("fill", "none");
+    bg.setAttribute("stroke", "#0b1220");
+    bg.setAttribute("stroke-width", "3.2");
+    svg.appendChild(bg);
+
+    p.sources.forEach((s) => {
+      const pct = (s.visits / total) * 100;
+      const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      circle.setAttribute("cx", "18");
+      circle.setAttribute("cy", "18");
+      circle.setAttribute("r", String(R));
+      circle.setAttribute("fill", "none");
+      circle.setAttribute("stroke", COLORS[s.name]);
+      circle.setAttribute("stroke-width", "3.2");
+      circle.setAttribute("stroke-dasharray", pct + " " + (100 - pct));
+      circle.setAttribute("stroke-dashoffset", String(-offset));
+      svg.appendChild(circle);
+      offset += pct;
+    });
+
+    // Legend
+    const legend = document.getElementById("legend");
+    legend.innerHTML = p.sources.map((s) => {
+      const pct = ((s.visits / total) * 100).toFixed(0);
+      return (
+        '<li><span class="swatch" style="background:' + COLORS[s.name] + '"></span>' +
+        s.name + '<span class="pct">' + pct + "%</span></li>"
+      );
+    }).join("");
+
+    // Bars
+    const max = Math.max(...p.sources.map((s) => s.visits));
+    const bars = document.getElementById("bars");
+    bars.innerHTML = p.sources.map((s) => {
+      const w = ((s.visits / max) * 100).toFixed(1);
+      return (
+        '<div class="bar-row">' +
+          '<div class="meta"><span class="name">' + s.name + "</span>" +
+          '<span class="num">' + fmt(s.visits) + "</span></div>" +
+          '<div class="track"><div class="fill" style="width:' + w + "%;background:" + COLORS[s.name] + '"></div></div>' +
+        "</div>"
+      );
+    }).join("");
+
+    // Force reflow for bar animation
+    requestAnimationFrame(() => {
+      bars.querySelectorAll(".fill").forEach((el) => {
+        const w = el.style.width;
+        el.style.width = "0";
+        requestAnimationFrame(() => { el.style.width = w; });
+      });
+    });
+
+    // Table
+    const tbody = document.getElementById("ref-table");
+    tbody.innerHTML = p.referrers.map((r) => (
+      "<tr>" +
+        '<td><span class="src-pill">' + r.src + "</span></td>" +
+        "<td><code>" + r.host + "</code></td>" +
+        "<td><code>" + r.sample + "</code></td>" +
+        "<td>" + fmt(r.n) + "</td>" +
+      "</tr>"
+    )).join("");
+  }
+
+  document.querySelectorAll(".chip").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".chip").forEach((b) => {
+        b.classList.remove("active");
+        b.setAttribute("aria-pressed", "false");
+      });
+      btn.classList.add("active");
+      btn.setAttribute("aria-pressed", "true");
+      render(btn.dataset.product);
+    });
+  });
+
+  render("flapi");
+})();
+</script>
+</body>
+</html>

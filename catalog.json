@@ -4,6 +4,19 @@
   "github": "https://github.com/pianopia/x-bm-demos",
   "demos": [
     {
+      "id": "ai-referral-dash-2026-09-24",
+      "title": "AI referral dashboard (mock)",
+      "date": "2026-09-24",
+      "path": "./ai-referral-dash-2026-09-24/",
+      "tags": [
+        "Flapi",
+        "tategaki",
+        "Midnote",
+        "analytics"
+      ],
+      "blurb": "Open Analytics v0.8.0着想。ChatGPT/Claude等からの流入を製品別に眺める静的モック（実計測なし）。"
+    },
+    {
       "id": "sss-peachfuzz-2026-09-23",
       "title": "SSS + peach fuzz look-dev",
       "date": "2026-09-23",
