@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>UV repack + texel density — x-bm-demos</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg:#0b1220; --card:#141c2b; --ink:#e8eef5; --muted:#8b9aab;
+    --accent:#5eead4; --line:#243044; --shop:#fbbf24; --warn:#f87171;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin:0;
+    font-family: ui-sans-serif, system-ui, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    background:
+      radial-gradient(900px 420px at 10% -10%, #1a3a4a 0%, transparent 55%),
+      radial-gradient(700px 380px at 95% 5%, #2a1a40 0%, transparent 50%),
+      var(--bg);
+    color: var(--ink);
+    min-height:100vh;
+    padding:24px 16px 56px;
+  }
+  .wrap { max-width:920px; margin:0 auto; }
+  .note {
+    background:#132018; border:1px solid #1f4a3a; color:#9fd6c4;
+    border-radius:12px; padding:10px 14px; font-size:.84rem; line-height:1.5; margin-bottom:18px;
+  }
+  header h1 { font-size:1.3rem; margin:0 0 6px; }
+  header .sub { margin:0 0 16px; color:var(--muted); font-size:.9rem; line-height:1.5; }
+  .panel {
+    background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px;
+  }
+  .row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:12px; }
+  button, label.chk {
+    appearance:none; border:1px solid var(--line); background:#0f1724; color:var(--ink);
+    border-radius:999px; padding:8px 14px; font-size:.86rem; cursor:pointer;
+  }
+  button:hover { border-color:var(--accent); color:var(--accent); }
+  button.primary { background:#12352f; border-color:var(--accent); color:var(--accent); font-weight:600; }
+  label.chk { display:inline-flex; gap:8px; align-items:center; user-select:none; }
+  canvas {
+    width:100%; height:auto; display:block; border-radius:12px;
+    background:#0a0f18; border:1px solid var(--line); cursor:grab; touch-action:none;
+  }
+  canvas.dragging { cursor:grabbing; }
+  .stats {
+    display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:12px;
+  }
+  @media (max-width:640px) { .stats { grid-template-columns:1fr; } }
+  .stat {
+    background:#0f1724; border:1px solid var(--line); border-radius:12px; padding:10px 12px;
+  }
+  .stat .k { font-size:.72rem; color:var(--muted); }
+  .stat .v { font-size:1.05rem; font-weight:700; margin-top:4px; font-variant-numeric:tabular-nums; }
+  .stat .v.warn { color:var(--warn); }
+  .stat .v.ok { color:var(--accent); }
+  .legend { margin-top:12px; color:var(--muted); font-size:.82rem; line-height:1.55; }
+  footer { margin-top:18px; color:var(--muted); font-size:.78rem; }
+  footer a { color:var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="note">Auto Unwrap 1.1.0 の「リパック時にテクセル密度を保持」をブラウザで感触だけ触るトイ。本物のBlenderアドオンではない。</div>
+  <header>
+    <h1>UV repack + texel density</h1>
+    <p class="sub">島をドラッグして動かし、「Repack」で 0–1 UV 空間に詰め直す。Preserve density ON だと各島の面積（＝相対テクセル密度）を変えず位置だけ詰める。</p>
+  </header>
+  <div class="panel">
+    <div class="row">
+      <button class="primary" id="btnRepack" type="button">Repack</button>
+      <button id="btnScatter" type="button">Scatter</button>
+      <button id="btnReset" type="button">Reset scale</button>
+      <label class="chk"><input type="checkbox" id="preserve" checked /> Preserve density</label>
+      <label class="chk"><input type="checkbox" id="uniform" /> Uniform scale (ignore density)</label>
+    </div>
+    <canvas id="c" width="860" height="520"></canvas>
+    <div class="stats">
+      <div class="stat"><div class="k">Islands</div><div class="v" id="nIslands">—</div></div>
+      <div class="stat"><div class="k">Pack fill (AABB)</div><div class="v" id="fill">—</div></div>
+      <div class="stat"><div class="k">Density drift (max)</div><div class="v" id="drift">—</div></div>
+    </div>
+    <p class="legend">色の濃さは目標テクセル密度。Preserve ON のリパック後は drift がほぼ 0 のまま詰められる。Uniform は見た目の隙間優先で島を同じ倍率にし、density が崩れる。</p>
+  </div>
+  <footer><a href="../">← x-bm-demos</a> · BELENUS / Tripo→Blender UV 感触用</footer>
+</div>
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const preserveEl = document.getElementById('preserve');
+  const uniformEl = document.getElementById('uniform');
+
+  const PAD = 0.02;
+  const colors = ['#5eead4','#fbbf24','#a78bfa','#fb7185','#38bdf8','#84cc16','#f472b6'];
+
+  function makeIslands() {
+    // x,y,w,h in 0–1 UV; areaTarget = w*h as density proxy
+    const specs = [
+      [0.05,0.08,0.28,0.22],
+      [0.38,0.06,0.18,0.18],
+      [0.62,0.1,0.3,0.16],
+      [0.08,0.4,0.2,0.32],
+      [0.36,0.38,0.26,0.2],
+      [0.7,0.36,0.22,0.28],
+      [0.42,0.68,0.34,0.22],
+    ];
+    return specs.map((s, i) => {
+      const [x,y,w,h] = s;
+      return { x, y, w, h, baseW:w, baseH:h, area0:w*h, color:colors[i%colors.length], id:i };
+    });
+  }
+
+  let islands = makeIslands();
+  let drag = null;
+
+  function uvToPx(u, v) {
+    const m = 24;
+    return [m + u * (canvas.width - 2*m), m + v * (canvas.height - 2*m)];
+  }
+  function pxToUv(px, py) {
+    const m = 24;
+    return [(px - m) / (canvas.width - 2*m), (py - m) / (canvas.height - 2*m)];
+  }
+
+  function draw() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    // UV frame
+    const [x0,y0] = uvToPx(0,0);
+    const [x1,y1] = uvToPx(1,1);
+    ctx.strokeStyle = '#2a3a50';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x0, y0, x1-x0, y1-y0);
+    ctx.fillStyle = '#0d1420';
+    ctx.fillRect(x0, y0, x1-x0, y1-y0);
+    // grid
+    ctx.strokeStyle = '#1a2740';
+    ctx.lineWidth = 1;
+    for (let i=1;i<8;i++) {
+      const [gx] = uvToPx(i/8,0);
+      const [,gy] = uvToPx(0,i/8);
+      ctx.beginPath(); ctx.moveTo(gx,y0); ctx.lineTo(gx,y1); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x0,gy); ctx.lineTo(x1,gy); ctx.stroke();
+    }
+    islands.forEach(isl => {
+      const [ax,ay] = uvToPx(isl.x, isl.y);
+      const [bx,by] = uvToPx(isl.x+isl.w, isl.y+isl.h);
+      const dens = isl.area0 / Math.max(1e-9, isl.w*isl.h);
+      const alpha = 0.35 + Math.min(0.55, dens * 0.35);
+      ctx.fillStyle = hexAlpha(isl.color, alpha);
+      ctx.strokeStyle = isl.color;
+      ctx.lineWidth = 2;
+      roundRect(ctx, ax, ay, bx-ax, by-ay, 6);
+      ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#e8eef5';
+      ctx.font = '12px ui-sans-serif, system-ui';
+      ctx.fillText(`#${isl.id}  dens×${dens.toFixed(2)}`, ax+6, ay+16);
+    });
+    updateStats();
+  }
+
+  function hexAlpha(hex, a) {
+    const n = parseInt(hex.slice(1),16);
+    const r=(n>>16)&255, g=(n>>8)&255, b=n&255;
+    return `rgba(${r},${g},${b},${a})`;
+  }
+  function roundRect(c,x,y,w,h,r) {
+    c.beginPath();
+    c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r);
+    c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath();
+  }
+
+  function updateStats() {
+    document.getElementById('nIslands').textContent = String(islands.length);
+    let minX=1,minY=1,maxX=0,maxY=0, area=0;
+    islands.forEach(i => {
+      minX=Math.min(minX,i.x); minY=Math.min(minY,i.y);
+      maxX=Math.max(maxX,i.x+i.w); maxY=Math.max(maxY,i.y+i.h);
+      area += i.w*i.h;
+    });
+    const box = Math.max(0, (maxX-minX)*(maxY-minY));
+    const fill = box > 0 ? area/box : 0;
+    document.getElementById('fill').textContent = (fill*100).toFixed(0) + '%';
+    let maxDrift = 0;
+    islands.forEach(i => {
+      const dens = i.area0 / Math.max(1e-9, i.w*i.h);
+      maxDrift = Math.max(maxDrift, Math.abs(1 - dens));
+    });
+    const driftEl = document.getElementById('drift');
+    driftEl.textContent = (maxDrift*100).toFixed(1) + '%';
+    driftEl.className = 'v ' + (maxDrift < 0.02 ? 'ok' : 'warn');
+  }
+
+  function hit(u,v) {
+    for (let i=islands.length-1;i>=0;i--) {
+      const isl=islands[i];
+      if (u>=isl.x && u<=isl.x+isl.w && v>=isl.y && v<=isl.y+isl.h) return isl;
+    }
+    return null;
+  }
+
+  function pointerPos(e) {
+    const r = canvas.getBoundingClientRect();
+    const sx = canvas.width / r.width, sy = canvas.height / r.height;
+    return [ (e.clientX - r.left)*sx, (e.clientY - r.top)*sy ];
+  }
+
+  canvas.addEventListener('pointerdown', e => {
+    const [px,py] = pointerPos(e);
+    const [u,v] = pxToUv(px,py);
+    const isl = hit(u,v);
+    if (!isl) return;
+    canvas.setPointerCapture(e.pointerId);
+    drag = { isl, ou:u-isl.x, ov:v-isl.y };
+    canvas.classList.add('dragging');
+  });
+  canvas.addEventListener('pointermove', e => {
+    if (!drag) return;
+    const [px,py] = pointerPos(e);
+    const [u,v] = pxToUv(px,py);
+    drag.isl.x = clamp(u - drag.ou, 0, 1 - drag.isl.w);
+    drag.isl.y = clamp(v - drag.ov, 0, 1 - drag.isl.h);
+    draw();
+  });
+  canvas.addEventListener('pointerup', () => {
+    drag = null; canvas.classList.remove('dragging');
+  });
+
+  function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+
+  function pack(preserve) {
+    // simple shelf pack sorted by height desc
+    const items = islands.map(i => ({...i})).sort((a,b)=>b.h-a.h || b.w-a.w);
+    if (!preserve && uniformEl.checked) {
+      // uniform scale to fit: find scale so sum areas * s^2 packs into 0.96^2 roughly via binary search shelves
+      let lo=0.2, hi=1.5;
+      for (let k=0;k<18;k++) {
+        const mid=(lo+hi)/2;
+        if (tryShelf(items.map(i=>({...i,w:i.baseW*mid,h:i.baseH*mid})))) lo=mid; else hi=mid;
+      }
+      const s=lo;
+      items.forEach(i => { i.w=i.baseW*s; i.h=i.baseH*s; });
+    }
+    // preserve: keep w,h as-is (density), only reorder positions
+    const placed = shelfPlace(items);
+    // write back by id
+    const byId = Object.fromEntries(placed.map(p=>[p.id,p]));
+    islands.forEach(isl => {
+      const p = byId[isl.id];
+      isl.x=p.x; isl.y=p.y; isl.w=p.w; isl.h=p.h;
+    });
+  }
+
+  function tryShelf(list) {
+    return !!shelfPlace(list, true);
+  }
+
+  function shelfPlace(list, dry=false) {
+    const margin = PAD;
+    let x=margin, y=margin, rowH=0;
+    const out=[];
+    for (const it of list) {
+      if (x + it.w > 1 - margin) {
+        x = margin;
+        y += rowH + margin;
+        rowH = 0;
+      }
+      if (y + it.h > 1 - margin) {
+        if (dry) return null;
+        // overflow: tiny shrink only when not preserving
+        return null;
+      }
+      out.push({...it, x, y});
+      x += it.w + margin;
+      rowH = Math.max(rowH, it.h);
+    }
+    return dry ? out : out;
+  }
+
+  function repack() {
+    const preserve = preserveEl.checked && !uniformEl.checked;
+    let ok = false;
+    if (preserve) {
+      // try as-is; if overflow, gently scale ALL equally (keeps relative density) until fits
+      let s = 1;
+      for (let k=0;k<24;k++) {
+        const trial = islands.map(i => ({
+          id:i.id, color:i.color, area0:i.area0, baseW:i.baseW, baseH:i.baseH,
+          w:i.baseW*s, h:i.baseH*s
+        })).sort((a,b)=>b.h-a.h||b.w-a.w);
+        const placed = shelfPlace(trial, true);
+        if (placed) {
+          const byId = Object.fromEntries(placed.map(p=>[p.id,p]));
+          islands.forEach(isl => {
+            const p=byId[isl.id];
+            isl.x=p.x; isl.y=p.y; isl.w=p.w; isl.h=p.h;
+          });
+          ok = true; break;
+        }
+        s *= 0.92;
+      }
+    } else {
+      // uniform / non-preserve: scale islands to maximize fill
+      pack(false);
+      // if pack failed internally, force smaller
+      let s=1;
+      for (let k=0;k<30;k++) {
+        const trial = islands.map(i => ({
+          id:i.id, color:i.color, area0:i.area0, baseW:i.baseW, baseH:i.baseH,
+          w:i.baseW*s, h:i.baseH*s
+        })).sort((a,b)=>b.h-a.h||b.w-a.w);
+        const placed = shelfPlace(trial, true);
+        if (placed) {
+          const byId = Object.fromEntries(placed.map(p=>[p.id,p]));
+          islands.forEach(isl => {
+            const p=byId[isl.id];
+            isl.x=p.x; isl.y=p.y; isl.w=p.w; isl.h=p.h;
+          });
+          ok = true; break;
+        }
+        s *= 0.9;
+      }
+    }
+    draw();
+  }
+
+  function scatter() {
+    islands.forEach(isl => {
+      isl.w = isl.baseW; isl.h = isl.baseH;
+      isl.x = Math.random() * (1 - isl.w);
+      isl.y = Math.random() * (1 - isl.h);
+    });
+    draw();
+  }
+
+  function resetScale() {
+    islands.forEach(isl => { isl.w=isl.baseW; isl.h=isl.baseH; });
+    draw();
+  }
+
+  preserveEl.addEventListener('change', () => {
+    if (preserveEl.checked) uniformEl.checked = false;
+  });
+  uniformEl.addEventListener('change', () => {
+    if (uniformEl.checked) preserveEl.checked = false;
+  });
+
+  document.getElementById('btnRepack').onclick = repack;
+  document.getElementById('btnScatter').onclick = scatter;
+  document.getElementById('btnReset').onclick = resetScale;
+
+  draw();
+})();
+</script>
+</body>
+</html>
