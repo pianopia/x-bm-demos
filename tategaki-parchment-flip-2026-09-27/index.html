@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>縦書き羊皮紙リーダー — 羅生門</title>
+  <meta name="description" content="紙の本のようにめくれる縦書きリーダー。芥川龍之介「羅生門」パブリックドメイン抜粋。">
+  <meta name="theme-color" content="#1c140e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="羊皮紙">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;600&display=swap">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="chrome chrome-top">
+      <div class="work-title"><span class="wt-main">羅生門</span><span class="wt-author">芥川龍之介</span></div>
+      <button class="icon-btn" id="fsBtn" type="button" aria-label="全画面表示の切り替え" hidden>
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </header>
+
+    <main class="stage" id="stage" aria-label="本文。左右にドラッグ、または矢印キーでページをめくります">
+      <div class="book" id="book" role="region" aria-roledescription="本" aria-label="羅生門">
+        <div class="pages" id="pages"></div>
+        <div class="fold-shadow" id="foldShadow" aria-hidden="true"></div>
+        <div class="page flap" id="flap" aria-hidden="true"><div class="show-through" id="flapContent"></div></div>
+        <div class="flap-shade" id="flapShade" aria-hidden="true"></div>
+        <article class="page measure" id="measure" aria-hidden="true"><div class="body"></div></article>
+      </div>
+    </main>
+
+    <footer class="chrome chrome-bottom">
+      <p class="hint" id="hint">
+        <span aria-hidden="true">←</span> 左右にドラッグでめくる <span aria-hidden="true">→</span>
+      </p>
+      <p class="indicator" id="indicator" aria-live="polite">1 / 1</p>
+    </footer>
+  </div>
+
+  <script src="./app.js" defer></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>

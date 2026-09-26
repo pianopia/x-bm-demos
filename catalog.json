@@ -4,6 +4,19 @@
   "github": "https://github.com/pianopia/x-bm-demos",
   "demos": [
     {
+      "id": "tategaki-parchment-flip-2026-09-27",
+      "title": "縦書き羊皮紙ブックフリップ",
+      "date": "2026-09-27",
+      "path": "./tategaki-parchment-flip-2026-09-27/",
+      "tags": [
+        "tategaki",
+        "PWA",
+        "UX",
+        "book"
+      ],
+      "blurb": "縦書き＋羊皮紙テクスチャの紙めくりリーダー。ドラッグ途中解放でスナップバック。羅生門抜粋のPWA。"
+    },
+    {
       "id": "uv-repack-2026-09-25",
       "title": "UV repack + texel density",
       "date": "2026-09-25",

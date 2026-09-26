@@ -1,0 +1,338 @@
+/* ───────── 縦書き羊皮紙リーダー ───────── */
+
+:root {
+  --room: #17100b;
+  --room-2: #2a1d13;
+  --ink: #2b1d12;
+  --ink-soft: rgba(43, 29, 18, 0.62);
+  --parch: #efe0bd;
+  --parch-hi: #f7edd3;
+  --parch-lo: #d6bd8a;
+  --chrome: rgba(236, 219, 184, 0.72);
+  --chrome-dim: rgba(236, 219, 184, 0.42);
+  --jp-serif: "Hiragino Mincho ProN", "Hiragino Mincho Pro", "Yu Mincho", "YuMincho", "Noto Serif JP", "Source Han Serif JP", "MS PMincho", serif;
+
+  /* procedural textures (SVG feTurbulence, rasterised once by the browser) */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .32 0 0 0 0 .22 0 0 0 0 .1 0 0 0 .6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.42'/%3E%3C/svg%3E");
+  --fiber: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='420'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.03 .11' numOctaves='2' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .45 0 0 0 0 .33 0 0 0 0 .16 0 0 0 1.6 -.72'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)' opacity='.22'/%3E%3C/svg%3E");
+  --mottle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.006' numOctaves='4' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .34 0 0 0 0 .12 0 0 0 1.8 -.8'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23m)' opacity='.3'/%3E%3C/svg%3E");
+
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--room);
+  color: var(--chrome);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  position: fixed;
+  inset: 0;
+  font-family: var(--jp-serif);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.app {
+  position: fixed;
+  inset: 0;
+  height: 100vh;
+  height: 100svh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  padding: var(--sat) var(--sar) var(--sab) var(--sal);
+  background:
+    radial-gradient(120% 80% at 50% 45%, var(--room-2) 0%, var(--room) 70%, #0d0906 100%);
+}
+.app::before { /* faint grain in the reading-room so it isn't flat black */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--grain);
+  opacity: 0.18;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+/* ───────── chrome ───────── */
+
+.chrome {
+  position: relative;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  transition: opacity 0.35s ease;
+}
+.app.chrome-hidden .chrome { opacity: 0; pointer-events: none; }
+
+.chrome-top { height: 44px; justify-content: space-between; }
+.work-title { display: flex; align-items: baseline; gap: 0.7em; letter-spacing: 0.12em; }
+.wt-main { font-size: 15px; font-weight: 600; color: var(--chrome); }
+.wt-author { font-size: 11px; color: var(--chrome-dim); }
+
+.icon-btn {
+  appearance: none;
+  border: 1px solid rgba(236, 219, 184, 0.18);
+  background: rgba(255, 240, 210, 0.04);
+  color: var(--chrome);
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.icon-btn:focus-visible { outline: 2px solid #c9a86a; outline-offset: 2px; }
+
+.chrome-bottom { height: 46px; justify-content: center; flex-direction: column; gap: 2px; }
+.indicator {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  color: var(--chrome-dim);
+  font-variant-numeric: tabular-nums;
+}
+.hint {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--chrome);
+  opacity: 0.9;
+  transition: opacity 0.8s ease, transform 0.8s ease;
+  animation: hint-breathe 2.6s ease-in-out infinite;
+}
+.hint.gone { opacity: 0; transform: translateY(4px); animation: none; }
+@keyframes hint-breathe { 50% { opacity: 0.45; } }
+
+/* ───────── stage + book ───────── */
+
+.stage {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  touch-action: none;
+  overscroll-behavior: contain;
+  cursor: grab;
+  overflow: hidden;
+}
+.stage.dragging { cursor: grabbing; }
+
+.book {
+  position: relative;
+  height: 100%;
+  max-width: 100%;
+  aspect-ratio: 0.7;
+  container-type: size;
+  border-radius: 3px 6px 6px 3px;
+  /* page-block edges peeking out + cast shadow on the table */
+  box-shadow:
+    1px 1px 0 #e6d3a8,
+    2px 2px 0 #c9b286,
+    3px 3px 0 #e2cea2,
+    4px 4px 0 #b99f72,
+    0 18px 40px -10px rgba(0, 0, 0, 0.75),
+    0 4px 14px rgba(0, 0, 0, 0.5);
+  will-change: transform;
+}
+
+.pages { position: absolute; inset: 0; }
+
+/* ───────── parchment ───────── */
+
+.page {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  color: var(--ink);
+  background-color: var(--parch);
+  background-image:
+    var(--grain),
+    var(--fiber),
+    var(--mottle),
+    radial-gradient(130% 95% at 55% 45%, transparent 55%, rgba(120, 78, 28, 0.28) 100%),   /* vignette */
+    radial-gradient(90% 70% at 50% 42%, var(--parch-hi) 0%, var(--parch) 60%, var(--parch-lo) 115%),
+    linear-gradient(90deg, rgba(90, 60, 25, 0.16) 0%, transparent 5%, transparent 96%, rgba(255, 250, 235, 0.35) 100%); /* gutter + fore-edge */
+  background-size: 240px 240px, 420px 420px, 600px 600px, 100% 100%, 100% 100%, 100% 100%;
+  visibility: hidden;
+  contain: layout paint style;
+}
+.page.is-top { visibility: visible; z-index: 2; }
+.page.is-under { visibility: visible; z-index: 1; }
+
+/* back side of the turning leaf: a touch darker, text faintly shows through (裏写り) */
+.flap {
+  z-index: 4;
+  transform-origin: 0 0;
+  filter: brightness(0.94) saturate(1.05);
+  will-change: transform, clip-path;
+}
+.flap.on { visibility: visible; }
+.show-through { position: absolute; inset: 0; opacity: 0.06; filter: blur(0.4px); }
+
+.flap-shade {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  z-index: 5;
+  pointer-events: none;
+  transform-origin: 0 0;
+  visibility: hidden;
+  background: linear-gradient(90deg,
+    rgba(255, 249, 232, 0.10) 0%,
+    rgba(255, 249, 232, 0.38) 30%,
+    rgba(120, 82, 36, 0.10) 72%,
+    rgba(70, 42, 14, 0.38) 100%);
+  box-shadow: -14px 0 26px -8px rgba(30, 16, 4, 0.45);
+  will-change: transform;
+}
+.flap-shade.on { visibility: visible; }
+
+.fold-shadow { /* shadow on the revealed page, just past the fold line */
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 70px;
+  z-index: 3;
+  pointer-events: none;
+  visibility: hidden;
+  background: linear-gradient(90deg, rgba(40, 22, 6, 0.42), rgba(40, 22, 6, 0.12) 40%, transparent);
+  will-change: transform, opacity;
+}
+.fold-shadow.on { visibility: visible; }
+
+/* ───────── typography ───────── */
+
+.body {
+  position: absolute;
+  top: 9.5cqh;
+  bottom: 8.5cqh;
+  right: 8cqw;
+  left: 8cqw;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-family: var(--jp-serif);
+  font-size: clamp(15px, 5cqw, 21px);
+  line-height: 1.85;
+  letter-spacing: 0.05em;
+  text-align: justify;
+  line-break: strict;
+  word-break: normal;
+  hanging-punctuation: allow-end;
+  white-space: pre-wrap;
+  overflow: hidden;
+  font-kerning: normal;
+  text-rendering: optimizeLegibility;
+  /* ink sits into the paper a little */
+  text-shadow: 0 0 0.6px rgba(43, 29, 18, 0.35);
+}
+
+.hashira {
+  position: absolute;
+  top: 3.6cqh;
+  left: 8cqw;
+  font-size: 10px;
+  letter-spacing: 0.3em;
+  color: var(--ink-soft);
+}
+.nombre {
+  position: absolute;
+  bottom: 3.2cqh;
+  left: 8cqw;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.measure { visibility: hidden !important; z-index: -1; pointer-events: none; }
+
+/* title page (扉) */
+.tobira .body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2.2em;
+  white-space: normal;
+  text-align: start;
+}
+.tobira .t-title {
+  font-size: clamp(34px, 13cqw, 58px);
+  font-weight: 600;
+  letter-spacing: 0.35em;
+  margin: 0;
+}
+.tobira .t-author { font-size: clamp(15px, 5cqw, 20px); letter-spacing: 0.4em; margin: 0; }
+.tobira .t-note { font-size: 11px; letter-spacing: 0.15em; color: var(--ink-soft); margin: 0; }
+.tobira .seal {
+  width: 2.1em;
+  height: 2.1em;
+  border: 2px solid #a8321f;
+  color: #a8321f;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  border-radius: 3px;
+  opacity: 0.8;
+  transform: rotate(4deg);
+  text-shadow: none;
+  writing-mode: horizontal-tb;
+}
+
+/* colophon (奥付) */
+.okuzuke .body {
+  white-space: normal;
+  font-size: clamp(13px, 4cqw, 16px);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 1.4em;
+}
+.okuzuke h2 { font-size: 1.25em; margin: 0; letter-spacing: 0.3em; font-weight: 600; }
+.okuzuke p { margin: 0; line-height: 1.9; }
+.okuzuke .restart {
+  appearance: none;
+  font: inherit;
+  font-size: 0.95em;
+  letter-spacing: 0.3em;
+  color: var(--parch-hi);
+  background: #5a3a1e;
+  border: 0;
+  border-radius: 4px;
+  padding: 1em 0.55em;
+  cursor: pointer;
+  text-shadow: none;
+  box-shadow: 0 2px 6px rgba(40, 20, 0, 0.35);
+}
+.okuzuke .restart:focus-visible { outline: 2px solid #a8321f; outline-offset: 3px; }
+
+/* edge bump when there is nothing more to turn */
+.book.bump { animation: bump 0.36s cubic-bezier(.3, .7, .4, 1); }
+@keyframes bump { 30% { transform: translateX(var(--bump, 0px)); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hint { animation: none; }
+  .hint, .chrome { transition-duration: 0.12s; }
+  .book.bump { animation-duration: 0.12s; }
+}

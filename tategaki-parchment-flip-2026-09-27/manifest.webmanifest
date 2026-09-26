@@ -1,0 +1,18 @@
+{
+  "name": "縦書き羊皮紙リーダー",
+  "short_name": "羊皮紙",
+  "description": "紙の本のようにめくれる縦書きリーダー（芥川龍之介「羅生門」パブリックドメイン抜粋）",
+  "lang": "ja",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#1c140e",
+  "background_color": "#efe0bd",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
