@@ -16,16 +16,9 @@
     '下人は、頸をちぢめながら、山吹の汗袗に重ねた、紺の襖の肩を高くして門のまわりを見まわした。雨風の患のない、人目にかかる惧のない、一晩楽にねられそうな所があれば、そこでともかくも、夜を明かそうと思ったからである。すると、幸い門の上の楼へ上る、幅の広い、これも丹を塗った梯子が眼についた。上なら、人がいたにしても、どうせ死人ばかりである。下人はそこで、腰にさげた聖柄の太刀が鞘走らないように気をつけながら、藁草履をはいた足を、その梯子の一番下の段へふみかけた。',
   ];
   const TEXT = PARAGRAPHS.map((p) => '　' + p).join('\n');
-  // 行頭禁則（次ページ先頭に来てはいけない）／行末禁則（ページ末尾に残してはいけない）
+  // 禁則のみ（ページは可能な限り埋める。句読点では区切らない）
   const NO_START = '、。，．」』）〕】〉》ー々ゝゞぁぃぅぇぉっゃゅょァィゥェォッャュョ・：；！？!?―—…‥';
   const NO_END = '「『（〔【〈《‘“〖〘〝';
-  // soft-break 優先（この文字の直後で切るほど良い）
-  const BREAK_AFTER = {
-    '\n': 100,
-    '。': 85, '！': 85, '？': 85, '!': 85, '?': 85, '…': 80, '‥': 80, '．': 75,
-    '」': 65, '』': 65, '）': 60, '〕': 60, '】': 60, '〉': 60, '》': 60,
-    '、': 45, '，': 45, '；': 40, '：': 40, '・': 35, '―': 30, '—': 30,
-  };
 
   // ───────── DOM ─────────
   const $ = (id) => document.getElementById(id);
@@ -52,23 +45,11 @@
   let cur = 0;
   let W = 1;             // book width in px
 
-  // ───────── pagination ─────────
+  // ───────── pagination (fill page to capacity) ─────────
   function fits(str) {
     measureBody.textContent = str;
-    // vertical-rl: overflow shows up as scrollWidth (columns) or scrollHeight
     return measureBody.scrollWidth <= measureBody.clientWidth + 1 &&
            measureBody.scrollHeight <= measureBody.clientHeight + 1;
-  }
-
-  function breakScore(absEnd) {
-    if (absEnd <= 0 || absEnd > TEXT.length) return -999;
-    if (absEnd === TEXT.length) return 120; // EOF is fine
-    const prev = TEXT[absEnd - 1];
-    const next = TEXT[absEnd];
-    let s = BREAK_AFTER[prev] || 0;
-    if (NO_END.includes(prev)) s -= 55;
-    if (NO_START.includes(next)) s -= 55;
-    return s;
   }
 
   function maxFitLen(start) {
@@ -88,43 +69,20 @@
     if (maxLen <= 0) return start;
     if (start + maxLen >= TEXT.length) return TEXT.length;
 
-    const minKeep = Math.max(1, Math.floor(maxLen * 0.52));
-    let bestEnd = start + maxLen;
-    let bestScore = breakScore(bestEnd);
+    // Start from max fill; only nudge a few chars for 禁則 (never empty the page)
+    let end = start + maxLen;
+    const floor = start + Math.max(1, maxLen - 8);
 
-    // Prefer a natural break in the latter half of the page (句読点・段落)
-    for (let e = start + maxLen; e >= start + minKeep; e--) {
-      const sc = breakScore(e);
-      if (sc > bestScore) {
-        bestScore = sc;
-        bestEnd = e;
-        if (sc >= 100) break; // paragraph boundary
-      }
-    }
-
-    // 行頭禁則: pull leading punctuation onto this page (must still fit)
-    let end = bestEnd;
-    while (end < TEXT.length && end < start + maxLen + 12 && NO_START.includes(TEXT[end])) {
+    // 行頭禁則: absorb punctuation that would otherwise lead the next page
+    while (end < TEXT.length && end - start <= maxLen + 6 && NO_START.includes(TEXT[end])) {
       if (!fits(TEXT.slice(start, end + 1))) break;
       end++;
     }
-    // 行末禁則: don't leave opening brackets at the page end
-    while (end > start + minKeep && NO_END.includes(TEXT[end - 1])) end--;
-
-    // Re-pick soft break if kinsoku left us on a weak cut
-    if (breakScore(end) < 30) {
-      let alt = end;
-      let altScore = breakScore(alt);
-      for (let e = end; e >= start + minKeep; e--) {
-        const sc = breakScore(e);
-        if (sc > altScore) { altScore = sc; alt = e; }
-        if (sc >= 85) break;
-      }
-      end = alt;
-    }
+    // 行末禁則: don't leave an opening bracket alone at the end
+    while (end > floor && NO_END.includes(TEXT[end - 1])) end--;
 
     while (end > start && !fits(TEXT.slice(start, end))) end--;
-    if (end <= start) end = start + Math.max(1, Math.min(maxLen, 1));
+    if (end <= start) end = start + Math.max(1, maxLen);
     return end;
   }
 
@@ -132,15 +90,13 @@
     const chunks = [];
     let start = 0;
     while (start < TEXT.length) {
-      while (start < TEXT.length && TEXT[start] === '\n') start++;
+      while (start < TEXT.length && (TEXT[start] === '\n' || TEXT[start] === ' ')) start++;
       if (start >= TEXT.length) break;
       const maxLen = maxFitLen(start);
       const end = chooseEnd(start, maxLen);
-      let text = TEXT.slice(start, end);
-      // trim trailing newlines from the chunk (paragraph gap is the break itself)
-      text = text.replace(/\n+$/, '');
+      const text = TEXT.slice(start, end);
       if (text.length) chunks.push({ start, text });
-      start = end;
+      start = Math.max(end, start + 1);
     }
     measureBody.textContent = '';
     return chunks;
