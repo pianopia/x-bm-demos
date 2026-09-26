@@ -1,5 +1,5 @@
 /* 縦書き羊皮紙リーダー — service worker: cache-first app shell */
-const VERSION = 'tategaki-parchment-v5';
+const VERSION = 'tategaki-parchment-v6';
 const SHELL = [
   './',
   './index.html',

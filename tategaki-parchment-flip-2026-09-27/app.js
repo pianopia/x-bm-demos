@@ -134,12 +134,18 @@
       // how much would fit if we started a fresh page at last.start
       measureBody.textContent = '';
       const capacity = maxFitLen(prev.start);
-      if (last.text.length < capacity * 0.42) {
+      if (last.text.length < capacity * 0.55) {
         const combined = prev.text + last.text;
         const absStart = prev.start;
-        // find largest split where both halves fit and second doesn't start with 禁則
-        let split = Math.min(combined.length - 1, maxFitLen(absStart));
-        while (split > Math.floor(combined.length * 0.35)) {
+        // aim for a near-even split that still fills both pages as much as possible
+        const target = Math.min(
+          Math.floor(combined.length / 2),
+          maxFitLen(absStart)
+        );
+        let best = null;
+        for (let split = Math.min(combined.length - 1, maxFitLen(absStart));
+             split >= Math.max(8, Math.floor(combined.length * 0.3));
+             split--) {
           let s = split;
           while (s < combined.length && NO_START.includes(combined[s])) {
             if (fits(combined.slice(0, s + 1), { hang: 1.0 })) s++;
@@ -147,13 +153,17 @@
           }
           const a = combined.slice(0, s);
           const b = combined.slice(s);
-          if (b.length && fits(a, { hang: 1.0 }) && fits(b, { hang: 1.0 }) && !NO_START.includes(b[0])) {
-            prev.text = a;
-            last.text = b;
-            last.start = absStart + s;
-            break;
-          }
-          split--;
+          if (!b.length || NO_START.includes(b[0])) continue;
+          if (!fits(a, { hang: 1.0 }) || !fits(b, { hang: 1.0 })) continue;
+          const score = -Math.abs(a.length - target) - (b.length < capacity * 0.5 ? 80 : 0);
+          if (!best || score > best.score) best = { a, b, s, score };
+          // good enough even split
+          if (Math.abs(a.length - target) <= 4 && b.length >= capacity * 0.45) break;
+        }
+        if (best) {
+          prev.text = best.a;
+          last.text = best.b;
+          last.start = absStart + best.s;
         }
         if (!last.text.length) chunks.pop();
       }
