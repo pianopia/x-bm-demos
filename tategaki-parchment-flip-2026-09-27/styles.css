@@ -265,7 +265,14 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
-.measure { visibility: hidden !important; z-index: -1; pointer-events: none; }
+.measure {
+  /* Do NOT use visibility:hidden — iOS returns empty glyph rects and breaks pagination. */
+  visibility: visible !important;
+  opacity: 0;
+  z-index: -1;
+  pointer-events: none;
+  contain: none;
+}
 
 /* title page (扉) */
 .tobira .body {

@@ -45,11 +45,11 @@
     </footer>
   </div>
 
-  <script src="./app.js" defer></script>
+  <script src="./app.js?v=7" defer></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {});
+        navigator.serviceWorker.register('./sw.js?v=7', { scope: './' }).catch(() => {});
       });
     }
   </script>

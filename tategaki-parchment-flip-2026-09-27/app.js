@@ -46,11 +46,32 @@
   let W = 1;             // book width in px
 
   // ───────── pagination (fill page to capacity) ─────────
+  // Prefer glyph geometry over scrollWidth — iOS Safari often lies about
+  // scroll metrics with writing-mode: vertical-rl, which yielded 1-column pages.
   function fits(str, { hang = 0 } = {}) {
     measureBody.textContent = str;
-    const slack = hang ? Math.ceil(parseFloat(getComputedStyle(measureBody).fontSize) * hang) : 0;
-    return measureBody.scrollWidth <= measureBody.clientWidth + 1 + slack &&
-           measureBody.scrollHeight <= measureBody.clientHeight + 1;
+    if (!str) return true;
+    const box = measureBody.getBoundingClientRect();
+    if (box.width < 8 || box.height < 8) return true; // not laid out yet
+    const node = measureBody.firstChild;
+    if (!node || node.nodeType !== 3) return true;
+    const range = document.createRange();
+    const len = node.length;
+    // sample last char (and a mid char) so we catch both overflow directions
+    range.setStart(node, Math.max(0, len - 1));
+    range.setEnd(node, len);
+    const last = range.getBoundingClientRect();
+    if (!last.width && !last.height && len > 0) {
+      // WebKit sometimes returns empty rects on hidden nodes — fall back
+      return measureBody.scrollWidth <= measureBody.clientWidth + 1 &&
+             measureBody.scrollHeight <= measureBody.clientHeight + 1;
+    }
+    const slack = hang ? parseFloat(getComputedStyle(measureBody).fontSize) * hang : 0;
+    // vertical-rl: new columns appear to the LEFT; keep glyphs inside the box
+    return last.left >= box.left - 1 - slack &&
+           last.right <= box.right + 1 + slack &&
+           last.top >= box.top - 1 &&
+           last.bottom <= box.bottom + 1;
   }
 
   function maxFitLen(start) {
@@ -73,21 +94,15 @@
     let end = start + maxLen;
     const floor = start + Math.max(1, maxLen - 16);
 
-    // 行頭禁則: next page must not start with 、。ぁ etc.
     if (end < TEXT.length && NO_START.includes(TEXT[end])) {
-      // 1) try to pull punctuation onto this page (slight hang OK)
       let abs = end;
       while (abs < TEXT.length && NO_START.includes(TEXT[abs])) abs++;
       if (fits(TEXT.slice(start, abs), { hang: 1.0 })) {
         end = abs;
       } else {
-        // 2) otherwise break earlier: move the last "word" + following punct to next page
-        //    so next page starts with e.g. 「た。」 not 「。」
         let e = end;
-        while (e > floor && NO_START.includes(TEXT[e])) e--; // now e at last non-punct of this page
-        // include that char on the NEXT page too
+        while (e > floor && NO_START.includes(TEXT[e])) e--;
         if (e > floor) e--;
-        // also don't end on NO_END
         while (e > floor && NO_END.includes(TEXT[e - 1])) e--;
         end = e;
       }
@@ -97,51 +112,52 @@
     while (end > start && !fits(TEXT.slice(start, end), { hang: 1.0 })) end--;
     if (end <= start) end = start + Math.max(1, maxLen);
 
-    // final guard: still don't lead next page with 禁則
     if (end < TEXT.length && NO_START.includes(TEXT[end])) {
       let abs = end;
       while (abs < TEXT.length && NO_START.includes(TEXT[abs])) abs++;
       if (fits(TEXT.slice(start, abs), { hang: 1.2 })) end = abs;
       else {
         let e = end;
-        while (e > floor && (NO_START.includes(TEXT[e]) || e === end)) {
-          if (!NO_START.includes(TEXT[e]) && e < end) break;
-          e--;
-        }
-        if (e > floor) end = e;
+        while (e > floor && NO_START.includes(TEXT[e])) e--;
+        if (e > floor) e--;
+        end = Math.max(e, start + 1);
       }
     }
     return end;
   }
 
   function paginate() {
+    // Ensure measure has real box (opacity-based, not visibility:hidden)
     const chunks = [];
     let start = 0;
     while (start < TEXT.length) {
       while (start < TEXT.length && (TEXT[start] === '\n' || TEXT[start] === ' ')) start++;
       if (start >= TEXT.length) break;
       const maxLen = maxFitLen(start);
-      const end = chooseEnd(start, maxLen);
+      // Safety: never accept a tiny page when more text remains (measurement glitch)
+      let end = chooseEnd(start, maxLen);
+      if (end - start < 40 && start + 40 < TEXT.length && maxLen < 40) {
+        // measurement failed closed — estimate by area
+        const fs = parseFloat(getComputedStyle(measureBody).fontSize) || 16;
+        const lh = (parseFloat(getComputedStyle(measureBody).lineHeight) / fs) || 1.85;
+        const cols = Math.max(1, Math.floor(measureBody.clientWidth / (fs * lh)));
+        const rows = Math.max(1, Math.floor(measureBody.clientHeight / fs));
+        const estimate = Math.max(40, Math.floor(cols * rows * 0.92));
+        end = chooseEnd(start, Math.min(estimate, TEXT.length - start));
+      }
       const text = TEXT.slice(start, end);
       if (text.length) chunks.push({ start, text });
       start = Math.max(end, start + 1);
     }
 
-    // Widow: rebalance a sparse final page with the previous one
     if (chunks.length >= 2) {
       const last = chunks[chunks.length - 1];
       const prev = chunks[chunks.length - 2];
-      // how much would fit if we started a fresh page at last.start
-      measureBody.textContent = '';
-      const capacity = maxFitLen(prev.start);
+      const capacity = Math.max(maxFitLen(prev.start), prev.text.length);
       if (last.text.length < capacity * 0.55) {
         const combined = prev.text + last.text;
         const absStart = prev.start;
-        // aim for a near-even split that still fills both pages as much as possible
-        const target = Math.min(
-          Math.floor(combined.length / 2),
-          maxFitLen(absStart)
-        );
+        const target = Math.min(Math.floor(combined.length / 2), maxFitLen(absStart));
         let best = null;
         for (let split = Math.min(combined.length - 1, maxFitLen(absStart));
              split >= Math.max(8, Math.floor(combined.length * 0.3));
@@ -157,7 +173,6 @@
           if (!fits(a, { hang: 1.0 }) || !fits(b, { hang: 1.0 })) continue;
           const score = -Math.abs(a.length - target) - (b.length < capacity * 0.5 ? 80 : 0);
           if (!best || score > best.score) best = { a, b, s, score };
-          // good enough even split
           if (Math.abs(a.length - target) <= 4 && b.length >= capacity * 0.45) break;
         }
         if (best) {
