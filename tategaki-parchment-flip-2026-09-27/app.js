@@ -150,8 +150,8 @@
   }
 
   // ───────── scene rendering ─────────
-  // A turn is described by (turnIdx, p): leaf `turnIdx` is being folded from its
-  // right edge toward the left spine, revealing leaf `turnIdx + 1` underneath.
+  // Japanese tankōbon: leaf `turnIdx` folds from its LEFT edge toward the RIGHT
+  // (左→右にめくる), revealing leaf `turnIdx + 1` underneath.
   // p = 0 → flat & unturned, p = 1 → fully turned. Going back = p running 1 → 0.
   let shown = { top: -1, under: -1 };
   let flapFor = -1;
@@ -178,14 +178,14 @@
     flapShade.classList.add('on');
     foldShadow.classList.add('on');
 
-    const fold = W * (1 - p);           // x of the fold line
-    const covered = W - fold;           // width of the lifted part
+    const fold = W * p;                 // crease x from left (JP: left→right turn)
+    const covered = fold;               // width of the lifted part
     const top = pages[turnIdx];
-    top.style.clipPath = `inset(0 ${covered}px 0 0)`;
+    top.style.clipPath = `inset(0 0 0 ${covered}px)`;
     // back of the leaf = the page mirrored about the fold line
     flap.style.transform = `translate3d(${2 * fold}px,0,0) scaleX(-1)`;
-    flap.style.clipPath = `inset(0 0 0 ${fold}px)`;
-    flapShade.style.transform = `translate3d(${2 * fold - covered}px,0,0) scaleX(${Math.max(covered, 0.001) / W})`;
+    flap.style.clipPath = `inset(0 ${Math.max(W - fold, 0)}px 0 0)`;
+    flapShade.style.transform = `translate3d(${fold - covered}px,0,0) scaleX(${Math.max(covered, 0.001) / W})`;
     flapShade.style.opacity = String(Math.min(1, p * 6));
     foldShadow.style.transform = `translate3d(${fold}px,0,0)`;
     foldShadow.style.opacity = String(Math.min(1, p * 5) * (1 - p * 0.6));
@@ -278,7 +278,7 @@
   book.addEventListener('animationend', () => book.classList.remove('bump'));
 
   // ───────── pointer drag ─────────
-  // Right-to-left drag advances (next page), left-to-right goes back.
+  // Left-to-right drag advances (next page), right-to-left goes back. (JP novel)
   const DRAG_SLOP = 6;
   const VELOCITY_FLING = 0.45; // px/ms
   let drag = null;
@@ -314,18 +314,18 @@
       if (Math.abs(dx) < DRAG_SLOP && Math.abs(dy) < DRAG_SLOP) return;
       drag.moved = true;
       if (Math.abs(dx) < Math.abs(dy)) return; // mostly vertical: ignore, keep waiting
-      if (dx < 0) {
-        if (cur >= pages.length - 1) { drag.blocked = -1; return; }
+      if (dx > 0) {
+        if (cur >= pages.length - 1) { drag.blocked = 1; return; }
         drag.turnIdx = cur; drag.p0 = 0;
       } else {
-        if (cur <= 0) { drag.blocked = 1; return; }
+        if (cur <= 0) { drag.blocked = -1; return; }
         drag.turnIdx = cur - 1; drag.p0 = 1;
       }
       drag.started = true;
       stage.classList.add('dragging');
     }
     e.preventDefault();
-    drag.p = Math.min(1, Math.max(0, drag.p0 - dx / W));
+    drag.p = Math.min(1, Math.max(0, drag.p0 + dx / W));
     renderTurn(drag.turnIdx, drag.p);
   }
 
@@ -352,11 +352,11 @@
     }
     const vx = e.type === 'pointercancel' ? 0 : velocity(d);
     let target;
-    if (vx < -VELOCITY_FLING) target = 1;        // flung leftwards → turn forward
-    else if (vx > VELOCITY_FLING) target = 0;    // flung rightwards → turn back
+    if (vx > VELOCITY_FLING) target = 1;         // flung rightwards → turn forward (JP)
+    else if (vx < -VELOCITY_FLING) target = 0;   // flung leftwards → turn back
     else target = d.p >= 0.5 ? 1 : 0;
     if (e.type === 'pointercancel') target = d.p0 < 0.5 ? 0 : 1; // abort → restore
-    const pv = (-vx * 1000) / W; // progress units / s, continuous with the finger
+    const pv = (vx * 1000) / W; // progress units / s, continuous with the finger
     animateTo(d.turnIdx, d.p, target, pv);
   }
 
