@@ -46,9 +46,10 @@
   let W = 1;             // book width in px
 
   // ───────── pagination (fill page to capacity) ─────────
-  function fits(str) {
+  function fits(str, { hang = 0 } = {}) {
     measureBody.textContent = str;
-    return measureBody.scrollWidth <= measureBody.clientWidth + 1 &&
+    const slack = hang ? Math.ceil(parseFloat(getComputedStyle(measureBody).fontSize) * hang) : 0;
+    return measureBody.scrollWidth <= measureBody.clientWidth + 1 + slack &&
            measureBody.scrollHeight <= measureBody.clientHeight + 1;
   }
 
@@ -69,20 +70,47 @@
     if (maxLen <= 0) return start;
     if (start + maxLen >= TEXT.length) return TEXT.length;
 
-    // Start from max fill; only nudge a few chars for 禁則 (never empty the page)
     let end = start + maxLen;
-    const floor = start + Math.max(1, maxLen - 8);
+    const floor = start + Math.max(1, maxLen - 16);
 
-    // 行頭禁則: absorb punctuation that would otherwise lead the next page
-    while (end < TEXT.length && end - start <= maxLen + 6 && NO_START.includes(TEXT[end])) {
-      if (!fits(TEXT.slice(start, end + 1))) break;
-      end++;
+    // 行頭禁則: next page must not start with 、。ぁ etc.
+    if (end < TEXT.length && NO_START.includes(TEXT[end])) {
+      // 1) try to pull punctuation onto this page (slight hang OK)
+      let abs = end;
+      while (abs < TEXT.length && NO_START.includes(TEXT[abs])) abs++;
+      if (fits(TEXT.slice(start, abs), { hang: 1.0 })) {
+        end = abs;
+      } else {
+        // 2) otherwise break earlier: move the last "word" + following punct to next page
+        //    so next page starts with e.g. 「た。」 not 「。」
+        let e = end;
+        while (e > floor && NO_START.includes(TEXT[e])) e--; // now e at last non-punct of this page
+        // include that char on the NEXT page too
+        if (e > floor) e--;
+        // also don't end on NO_END
+        while (e > floor && NO_END.includes(TEXT[e - 1])) e--;
+        end = e;
+      }
     }
-    // 行末禁則: don't leave an opening bracket alone at the end
-    while (end > floor && NO_END.includes(TEXT[end - 1])) end--;
 
-    while (end > start && !fits(TEXT.slice(start, end))) end--;
+    while (end > floor && NO_END.includes(TEXT[end - 1])) end--;
+    while (end > start && !fits(TEXT.slice(start, end), { hang: 1.0 })) end--;
     if (end <= start) end = start + Math.max(1, maxLen);
+
+    // final guard: still don't lead next page with 禁則
+    if (end < TEXT.length && NO_START.includes(TEXT[end])) {
+      let abs = end;
+      while (abs < TEXT.length && NO_START.includes(TEXT[abs])) abs++;
+      if (fits(TEXT.slice(start, abs), { hang: 1.2 })) end = abs;
+      else {
+        let e = end;
+        while (e > floor && (NO_START.includes(TEXT[e]) || e === end)) {
+          if (!NO_START.includes(TEXT[e]) && e < end) break;
+          e--;
+        }
+        if (e > floor) end = e;
+      }
+    }
     return end;
   }
 
@@ -98,6 +126,39 @@
       if (text.length) chunks.push({ start, text });
       start = Math.max(end, start + 1);
     }
+
+    // Widow: rebalance a sparse final page with the previous one
+    if (chunks.length >= 2) {
+      const last = chunks[chunks.length - 1];
+      const prev = chunks[chunks.length - 2];
+      // how much would fit if we started a fresh page at last.start
+      measureBody.textContent = '';
+      const capacity = maxFitLen(prev.start);
+      if (last.text.length < capacity * 0.42) {
+        const combined = prev.text + last.text;
+        const absStart = prev.start;
+        // find largest split where both halves fit and second doesn't start with 禁則
+        let split = Math.min(combined.length - 1, maxFitLen(absStart));
+        while (split > Math.floor(combined.length * 0.35)) {
+          let s = split;
+          while (s < combined.length && NO_START.includes(combined[s])) {
+            if (fits(combined.slice(0, s + 1), { hang: 1.0 })) s++;
+            else break;
+          }
+          const a = combined.slice(0, s);
+          const b = combined.slice(s);
+          if (b.length && fits(a, { hang: 1.0 }) && fits(b, { hang: 1.0 }) && !NO_START.includes(b[0])) {
+            prev.text = a;
+            last.text = b;
+            last.start = absStart + s;
+            break;
+          }
+          split--;
+        }
+        if (!last.text.length) chunks.pop();
+      }
+    }
+
     measureBody.textContent = '';
     return chunks;
   }
