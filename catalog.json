@@ -4,6 +4,19 @@
   "github": "https://github.com/pianopia/x-bm-demos",
   "demos": [
     {
+      "id": "caustic-volume-lite-2026-09-28",
+      "title": "Caustic volume lite (three.js)",
+      "date": "2026-09-28",
+      "path": "./caustic-volume-lite-2026-09-28/",
+      "tags": [
+        "BELENUS",
+        "three.js",
+        "lookdev",
+        "water"
+      ],
+      "blurb": "ScottieFox caustic-volume着想。ブラウザだけの疑似コースティクス＋水面。BELENUS向けlook-devトイ。"
+    },
+    {
       "id": "tategaki-parchment-flip-2026-09-27",
       "title": "縦書き羊皮紙ブックフリップ",
       "date": "2026-09-27",

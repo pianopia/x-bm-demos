@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Caustic volume lite (three.js look-dev)</title>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #061018; font-family: ui-sans-serif, system-ui, "Hiragino Sans", sans-serif; overflow: hidden; }
+  #c { display: block; width: 100%; height: 100%; touch-action: none; }
+  .hud {
+    position: fixed; left: 12px; bottom: 12px; right: 12px; max-width: 460px;
+    background: rgba(8,16,24,.84); border: 1px solid rgba(120,200,255,.18);
+    border-radius: 12px; padding: 12px 14px; color: #e8f2f8; backdrop-filter: blur(8px);
+    font-size: 13px; line-height: 1.45; z-index: 2;
+  }
+  .hud h1 { margin: 0 0 6px; font-size: 14px; font-weight: 650; letter-spacing: .02em; }
+  .hud p { margin: 0 0 8px; color: #a8bdd0; }
+  .note { font-size: 11.5px; color: #7f93a8; margin: 0 0 10px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 4px 0; }
+  label { display: flex; gap: 6px; align-items: center; cursor: pointer; color: #c8d8e8; }
+  input[type=range] { width: 110px; }
+  a { color: #7ec8ff; }
+  footer.credit { margin: 0; font-size: 11px; color: #6e8498; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud">
+  <h1>Caustic volume lite</h1>
+  <p>疑似コースティクス＋波打つ水面。BELENUS向け water / refraction look-dev トイ（本物の屈折シミュではない）。</p>
+  <p class="note">LOOK toy — fake caustics on floor + animated water plane. Drag to orbit.</p>
+  <div class="row">
+    <label>caustic <input type="range" id="caustic" min="0" max="100" value="70" /></label>
+    <label>waves <input type="range" id="waves" min="0" max="100" value="55" /></label>
+    <label>fog <input type="range" id="fog" min="0" max="100" value="40" /></label>
+  </div>
+  <footer class="credit">Inspired by <a href="https://scottiefox.github.io/caustic-volume/" target="_blank" rel="noopener">ScottieFox caustic-volume</a> · not a port</footer>
+</div>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x061018);
+scene.fog = new THREE.FogExp2(0x0a2030, 0.055);
+
+const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 80);
+camera.position.set(4.2, 3.4, 5.6);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.target.set(0, 0.4, 0);
+controls.minDistance = 2.5;
+controls.maxDistance = 14;
+controls.maxPolarAngle = Math.PI * 0.48;
+
+scene.add(new THREE.HemisphereLight(0x8ec8ff, 0x0a1820, 0.55));
+const sun = new THREE.DirectionalLight(0xfff2c8, 2.2);
+sun.position.set(6, 10, 3);
+scene.add(sun);
+
+// Shared noise helpers for caustic + water shaders
+const noiseGLSL = `
+float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
+float noise(vec2 p){
+  vec2 i = floor(p), f = fract(p);
+  f = f*f*(3.0-2.0*f);
+  return mix(mix(hash(i), hash(i+vec2(1,0)), f.x),
+             mix(hash(i+vec2(0,1)), hash(i+vec2(1,1)), f.x), f.y);
+}
+float fbm(vec2 p){
+  float v = 0.0, a = 0.5;
+  for(int i=0;i<5;i++){ v += a*noise(p); p = p*2.03 + 17.1; a *= 0.5; }
+  return v;
+}
+`;
+
+// Pool floor with animated caustic pattern
+const floorMat = new THREE.ShaderMaterial({
+  uniforms: {
+    uTime: { value: 0 },
+    uIntensity: { value: 0.7 },
+    uColorDeep: { value: new THREE.Color(0x0c3a48) },
+    uColorSand: { value: new THREE.Color(0x1a5a5e) },
+    uCaustic: { value: new THREE.Color(0xc8ffe8) },
+  },
+  vertexShader: `
+    varying vec2 vUv; varying vec3 vPos;
+    void main(){
+      vUv = uv; vPos = position;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: `
+    uniform float uTime, uIntensity;
+    uniform vec3 uColorDeep, uColorSand, uCaustic;
+    varying vec2 vUv; varying vec3 vPos;
+    ${noiseGLSL}
+    void main(){
+      vec2 p = vPos.xz * 0.55;
+      float t = uTime * 0.35;
+      // dual-layer caustic ridges (voronoi-ish via abs of noise gradients)
+      float n1 = fbm(p * 1.8 + vec2(t, -t*0.7));
+      float n2 = fbm(p * 2.4 + vec2(-t*0.6, t*0.9) + 3.7);
+      float ridges = abs(n1 - n2);
+      float caust = pow(1.0 - smoothstep(0.02, 0.22, ridges), 3.2);
+      caust += 0.35 * pow(1.0 - smoothstep(0.0, 0.35, abs(fbm(p*3.1 - t) - 0.5)), 4.0);
+      caust *= uIntensity;
+      float tile = smoothstep(0.02, 0.0, abs(fract(vPos.x*0.5)-0.5)*2.0-0.92)
+                 + smoothstep(0.02, 0.0, abs(fract(vPos.z*0.5)-0.5)*2.0-0.92);
+      vec3 base = mix(uColorDeep, uColorSand, 0.35 + 0.25*fbm(p*0.4));
+      base = mix(base, base*0.75, clamp(tile, 0.0, 1.0)*0.35);
+      vec3 col = base + uCaustic * caust * 1.35;
+      // soft vignette toward pool edges
+      float edge = length(vPos.xz) / 7.5;
+      col *= 1.0 - 0.35 * smoothstep(0.55, 1.05, edge);
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `,
+});
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(16, 16, 1, 1), floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -1.2;
+scene.add(floor);
+
+// Animated water surface
+const waterMat = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  side: THREE.DoubleSide,
+  uniforms: {
+    uTime: { value: 0 },
+    uAmp: { value: 0.12 },
+    uColor: { value: new THREE.Color(0x3aa8c8) },
+    uSky: { value: new THREE.Color(0xb8e8ff) },
+  },
+  vertexShader: `
+    uniform float uTime, uAmp;
+    varying vec3 vWorld; varying vec3 vN; varying float vH;
+    ${noiseGLSL}
+    void main(){
+      vec3 p = position;
+      float h = fbm(p.xz * 0.55 + uTime * 0.25) * 2.0 - 1.0;
+      h += 0.45 * (fbm(p.xz * 1.3 - uTime * 0.4) * 2.0 - 1.0);
+      p.y += h * uAmp;
+      vH = h;
+      // cheap normals from height field
+      float e = 0.15;
+      float hx = (fbm((p.xz+vec2(e,0))*0.55 + uTime*0.25) - fbm((p.xz-vec2(e,0))*0.55 + uTime*0.25));
+      float hz = (fbm((p.xz+vec2(0,e))*0.55 + uTime*0.25) - fbm((p.xz-vec2(0,e))*0.55 + uTime*0.25));
+      vN = normalize(normalMatrix * normalize(vec3(-hx * uAmp * 8.0, 1.0, -hz * uAmp * 8.0)));
+      vec4 wp = modelMatrix * vec4(p, 1.0);
+      vWorld = wp.xyz;
+      gl_Position = projectionMatrix * viewMatrix * wp;
+    }
+  `,
+  fragmentShader: `
+    uniform vec3 uColor, uSky;
+    varying vec3 vWorld; varying vec3 vN; varying float vH;
+    void main(){
+      vec3 N = normalize(vN);
+      vec3 V = normalize(cameraPosition - vWorld);
+      float fres = pow(1.0 - max(dot(N, V), 0.0), 3.0);
+      float spark = pow(max(dot(N, normalize(vec3(0.4, 1.0, 0.2))), 0.0), 48.0);
+      vec3 col = mix(uColor * (0.55 + 0.25*vH), uSky, fres * 0.85);
+      col += vec3(0.85, 0.95, 1.0) * spark * 0.55;
+      float alpha = mix(0.42, 0.78, fres);
+      gl_FragColor = vec4(col, alpha);
+    }
+  `,
+});
+const water = new THREE.Mesh(new THREE.PlaneGeometry(14, 14, 96, 96), waterMat);
+water.rotation.x = -Math.PI / 2;
+water.position.y = 0.15;
+scene.add(water);
+
+// Simple submerged props for scale / refraction vibe
+const pillarMat = new THREE.MeshStandardMaterial({ color: 0x2a4a52, roughness: 0.85, metalness: 0.05 });
+for (const [x, z, h] of [[-2.2, -1.5, 1.6], [1.8, 2.0, 1.2], [0.4, -2.8, 0.9]]) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, h, 12), pillarMat);
+  m.position.set(x, -1.2 + h * 0.5, z);
+  scene.add(m);
+}
+const orb = new THREE.Mesh(
+  new THREE.IcosahedronGeometry(0.45, 1),
+  new THREE.MeshStandardMaterial({ color: 0xffb070, roughness: 0.35, metalness: 0.2, emissive: 0x3a1808, emissiveIntensity: 0.35 })
+);
+orb.position.set(1.2, -0.55, -0.6);
+scene.add(orb);
+
+const elC = document.getElementById('caustic');
+const elW = document.getElementById('waves');
+const elF = document.getElementById('fog');
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+const clock = new THREE.Clock();
+(function tick() {
+  const t = clock.getElapsedTime();
+  floorMat.uniforms.uTime.value = t;
+  floorMat.uniforms.uIntensity.value = elC.value / 100;
+  waterMat.uniforms.uTime.value = t;
+  waterMat.uniforms.uAmp.value = 0.04 + (elW.value / 100) * 0.18;
+  scene.fog.density = 0.02 + (elF.value / 100) * 0.08;
+  orb.position.y = -0.55 + Math.sin(t * 0.9) * 0.08;
+  orb.rotation.y = t * 0.35;
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
