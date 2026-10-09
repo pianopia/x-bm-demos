@@ -1,194 +1,206 @@
 {
-  "project": "x-bm-demos",
-  "pages": "https://x-bm-demos.pages.dev/",
-  "github": "https://github.com/pianopia/x-bm-demos",
-  "demos": [
-    {
-      "id": "caustic-volume-lite-2026-09-28",
-      "title": "Caustic volume lite (three.js)",
-      "date": "2026-09-28",
-      "path": "./caustic-volume-lite-2026-09-28/",
-      "tags": [
-        "BELENUS",
-        "three.js",
-        "lookdev",
-        "water"
-      ],
-      "blurb": "ScottieFox caustic-volume着想。ブラウザだけの疑似コースティクス＋水面。BELENUS向けlook-devトイ。"
-    },
-    {
-      "id": "tategaki-parchment-flip-2026-09-27",
-      "title": "縦書き羊皮紙ブックフリップ",
-      "date": "2026-09-27",
-      "path": "./tategaki-parchment-flip-2026-09-27/",
-      "tags": [
-        "tategaki",
-        "PWA",
-        "UX",
-        "book"
-      ],
-      "blurb": "縦書き＋羊皮紙テクスチャの紙めくりリーダー。ドラッグ途中解放でスナップバック。羅生門抜粋のPWA。"
-    },
-    {
-      "id": "uv-repack-2026-09-25",
-      "title": "UV repack + texel density",
-      "date": "2026-09-25",
-      "path": "./uv-repack-2026-09-25/",
-      "tags": [
-        "BELENUS",
-        "Blender",
-        "UV"
-      ],
-      "blurb": "Auto Unwrap 1.1.0着想。リパック時のテクセル密度保持をブラウザで感触だけ触るトイ（本物アドオンではない）。"
-    },
-    {
-      "id": "ai-referral-dash-2026-09-24",
-      "title": "AI referral dashboard (mock)",
-      "date": "2026-09-24",
-      "path": "./ai-referral-dash-2026-09-24/",
-      "tags": [
-        "Flapi",
-        "tategaki",
-        "Midnote",
-        "analytics"
-      ],
-      "blurb": "Open Analytics v0.8.0着想。ChatGPT/Claude等からの流入を製品別に眺める静的モック（実計測なし）。"
-    },
-    {
-      "id": "sss-peachfuzz-2026-09-23",
-      "title": "SSS + peach fuzz look-dev",
-      "date": "2026-09-23",
-      "path": "./sss-peachfuzz-2026-09-23/",
-      "tags": [
-        "BELENUS",
-        "three.js",
-        "lookdev"
-      ],
-      "blurb": "ブラウザのみの疑似SSS＋産毛リム＋屈折角膜。BELENUS向けlook-devトイ（本番SSSではない）。"
-    },
-    {
-      "id": "comment-motion-toy-2026-09-22",
-      "title": "Comment → Motion Toy",
-      "date": "2026-09-22",
-      "path": "./comment-motion-toy-2026-09-22/",
-      "tags": [
-        "BELENUS",
-        "UX",
-        "live"
-      ],
-      "blurb": "ARDY Mini着想。コメント文言→モーションの感触だけ触る静的トイ（本物モデルなし）。"
-    },
-    {
-      "id": "shader-stamp-card-2026-09-21",
-      "title": "Shader Stamp Card",
-      "date": "2026-09-21",
-      "path": "./shader-stamp-card-2026-09-21/",
-      "tags": [
-        "Flapi",
-        "WebGL",
-        "UI"
-      ],
-      "blurb": "店舗スタンプカードにシェーダー背景＋傾き＋押下。shadercn/インタラクティブカード着想の静的トイ。"
-    },
-    {
-      "id": "jev-flapi-lab-2026-09-19",
-      "title": "Jev-shaped lab (free mock) × Flapi",
-      "date": "2026-09-19",
-      "path": "./jev-flapi-lab-2026-09-19/",
-      "tags": [
-        "Flapi",
-        "Jev",
-        "System One"
-      ],
-      "blurb": "Noul/Choice/Score の応答形を無料の静的モックで触る。本物Jev/Workers AIは使わない。"
-    },
-    {
-      "id": "lens-trace-2026-09-18",
-      "title": "Lens Trace — anamorphic + diffusion",
-      "date": "2026-09-18",
-      "path": "./lens-trace-2026-09-18/",
-      "tags": [
-        "BELENUS",
-        "three.js",
-        "cinematic"
-      ],
-      "blurb": "FF寄りシネマのレンズ味を Web で先に触るトイ。"
-    },
-    {
-      "id": "stamp-pattern-2026-09-17",
-      "title": "Stamp Pattern Mixer",
-      "date": "2026-09-17",
-      "path": "./stamp-pattern-2026-09-17/",
-      "tags": [
-        "Flapi",
-        "SVG"
-      ],
-      "blurb": "店舗スタンプカードの背景柄ミキサー（ベース×重ね×色×密度）。"
-    },
-    {
-      "id": "vector-stamp-card",
-      "title": "Vector Stamp Card",
-      "date": "2026-09-16",
-      "path": "./vector-stamp-card/",
-      "tags": [
-        "Flapi",
-        "SVG"
-      ],
-      "blurb": "拡大しても輪郭が割れない Flapi 風スタンプカード。"
-    },
-    {
-      "id": "soft-plant-card",
-      "title": "Soft Plant Card",
-      "date": "2026-09-08",
-      "path": "./soft-plant-card/",
-      "tags": [
-        "UI",
-        "CSS"
-      ],
-      "blurb": "柔らかい植物カードの見た目試作。"
-    },
-    {
-      "id": "parallax-window",
-      "title": "Parallax Window",
-      "date": "2026-09-08",
-      "path": "./parallax-window/",
-      "tags": [
-        "UI",
-        "CSS"
-      ],
-      "blurb": "窓枠パララックスの軽いデモ。"
-    },
-    {
-      "id": "autosave-coalesce",
-      "title": "Autosave Coalesce",
-      "date": "2026-09-08",
-      "path": "./autosave-coalesce/",
-      "tags": [
-        "tategaki",
-        "UX"
-      ],
-      "blurb": "連続入力のオートセーブ間引きイメージ。"
-    },
-    {
-      "id": "2026-09-08-grass-walk",
-      "title": "Grass Walk (three.js)",
-      "date": "2026-09-08",
-      "path": "./2026-09-08-grass-walk/",
-      "tags": [
-        "BELENUS",
-        "three.js"
-      ],
-      "blurb": "草の上を歩く軽い three.js 試作。"
-    },
-    {
-      "id": "2026-09-08-branchless-bench",
-      "title": "Branchless Python Bench",
-      "date": "2026-09-08",
-      "path": "./2026-09-08-branchless-bench/",
-      "tags": [
-        "AI coding"
-      ],
-      "blurb": "ブランチレス寄りの Python マイクロベンチ（ソース付き）。"
-    }
-  ]
+ "project": "x-bm-demos",
+ "pages": "https://x-bm-demos.pages.dev/",
+ "github": "https://github.com/pianopia/x-bm-demos",
+ "demos": [
+  {
+   "id": "frustum-stream-2026-10-10",
+   "title": "Frustum Streaming toy",
+   "date": "2026-10-10",
+   "path": "./frustum-stream-2026-10-10/",
+   "tags": [
+    "BELENUS",
+    "open-world",
+    "streaming"
+   ],
+   "blurb": "Roblox Frustum Streaming着想。周囲均等ロード vs 視錐台だけ遠くまで、のチャンク数を比べる2Dトイ。"
+  },
+  {
+   "id": "caustic-volume-lite-2026-09-28",
+   "title": "Caustic volume lite (three.js)",
+   "date": "2026-09-28",
+   "path": "./caustic-volume-lite-2026-09-28/",
+   "tags": [
+    "BELENUS",
+    "three.js",
+    "lookdev",
+    "water"
+   ],
+   "blurb": "ScottieFox caustic-volume着想。ブラウザだけの疑似コースティクス＋水面。BELENUS向けlook-devトイ。"
+  },
+  {
+   "id": "tategaki-parchment-flip-2026-09-27",
+   "title": "縦書き羊皮紙ブックフリップ",
+   "date": "2026-09-27",
+   "path": "./tategaki-parchment-flip-2026-09-27/",
+   "tags": [
+    "tategaki",
+    "PWA",
+    "UX",
+    "book"
+   ],
+   "blurb": "縦書き＋羊皮紙テクスチャの紙めくりリーダー。ドラッグ途中解放でスナップバック。羅生門抜粋のPWA。"
+  },
+  {
+   "id": "uv-repack-2026-09-25",
+   "title": "UV repack + texel density",
+   "date": "2026-09-25",
+   "path": "./uv-repack-2026-09-25/",
+   "tags": [
+    "BELENUS",
+    "Blender",
+    "UV"
+   ],
+   "blurb": "Auto Unwrap 1.1.0着想。リパック時のテクセル密度保持をブラウザで感触だけ触るトイ（本物アドオンではない）。"
+  },
+  {
+   "id": "ai-referral-dash-2026-09-24",
+   "title": "AI referral dashboard (mock)",
+   "date": "2026-09-24",
+   "path": "./ai-referral-dash-2026-09-24/",
+   "tags": [
+    "Flapi",
+    "tategaki",
+    "Midnote",
+    "analytics"
+   ],
+   "blurb": "Open Analytics v0.8.0着想。ChatGPT/Claude等からの流入を製品別に眺める静的モック（実計測なし）。"
+  },
+  {
+   "id": "sss-peachfuzz-2026-09-23",
+   "title": "SSS + peach fuzz look-dev",
+   "date": "2026-09-23",
+   "path": "./sss-peachfuzz-2026-09-23/",
+   "tags": [
+    "BELENUS",
+    "three.js",
+    "lookdev"
+   ],
+   "blurb": "ブラウザのみの疑似SSS＋産毛リム＋屈折角膜。BELENUS向けlook-devトイ（本番SSSではない）。"
+  },
+  {
+   "id": "comment-motion-toy-2026-09-22",
+   "title": "Comment → Motion Toy",
+   "date": "2026-09-22",
+   "path": "./comment-motion-toy-2026-09-22/",
+   "tags": [
+    "BELENUS",
+    "UX",
+    "live"
+   ],
+   "blurb": "ARDY Mini着想。コメント文言→モーションの感触だけ触る静的トイ（本物モデルなし）。"
+  },
+  {
+   "id": "shader-stamp-card-2026-09-21",
+   "title": "Shader Stamp Card",
+   "date": "2026-09-21",
+   "path": "./shader-stamp-card-2026-09-21/",
+   "tags": [
+    "Flapi",
+    "WebGL",
+    "UI"
+   ],
+   "blurb": "店舗スタンプカードにシェーダー背景＋傾き＋押下。shadercn/インタラクティブカード着想の静的トイ。"
+  },
+  {
+   "id": "jev-flapi-lab-2026-09-19",
+   "title": "Jev-shaped lab (free mock) × Flapi",
+   "date": "2026-09-19",
+   "path": "./jev-flapi-lab-2026-09-19/",
+   "tags": [
+    "Flapi",
+    "Jev",
+    "System One"
+   ],
+   "blurb": "Noul/Choice/Score の応答形を無料の静的モックで触る。本物Jev/Workers AIは使わない。"
+  },
+  {
+   "id": "lens-trace-2026-09-18",
+   "title": "Lens Trace — anamorphic + diffusion",
+   "date": "2026-09-18",
+   "path": "./lens-trace-2026-09-18/",
+   "tags": [
+    "BELENUS",
+    "three.js",
+    "cinematic"
+   ],
+   "blurb": "FF寄りシネマのレンズ味を Web で先に触るトイ。"
+  },
+  {
+   "id": "stamp-pattern-2026-09-17",
+   "title": "Stamp Pattern Mixer",
+   "date": "2026-09-17",
+   "path": "./stamp-pattern-2026-09-17/",
+   "tags": [
+    "Flapi",
+    "SVG"
+   ],
+   "blurb": "店舗スタンプカードの背景柄ミキサー（ベース×重ね×色×密度）。"
+  },
+  {
+   "id": "vector-stamp-card",
+   "title": "Vector Stamp Card",
+   "date": "2026-09-16",
+   "path": "./vector-stamp-card/",
+   "tags": [
+    "Flapi",
+    "SVG"
+   ],
+   "blurb": "拡大しても輪郭が割れない Flapi 風スタンプカード。"
+  },
+  {
+   "id": "soft-plant-card",
+   "title": "Soft Plant Card",
+   "date": "2026-09-08",
+   "path": "./soft-plant-card/",
+   "tags": [
+    "UI",
+    "CSS"
+   ],
+   "blurb": "柔らかい植物カードの見た目試作。"
+  },
+  {
+   "id": "parallax-window",
+   "title": "Parallax Window",
+   "date": "2026-09-08",
+   "path": "./parallax-window/",
+   "tags": [
+    "UI",
+    "CSS"
+   ],
+   "blurb": "窓枠パララックスの軽いデモ。"
+  },
+  {
+   "id": "autosave-coalesce",
+   "title": "Autosave Coalesce",
+   "date": "2026-09-08",
+   "path": "./autosave-coalesce/",
+   "tags": [
+    "tategaki",
+    "UX"
+   ],
+   "blurb": "連続入力のオートセーブ間引きイメージ。"
+  },
+  {
+   "id": "2026-09-08-grass-walk",
+   "title": "Grass Walk (three.js)",
+   "date": "2026-09-08",
+   "path": "./2026-09-08-grass-walk/",
+   "tags": [
+    "BELENUS",
+    "three.js"
+   ],
+   "blurb": "草の上を歩く軽い three.js 試作。"
+  },
+  {
+   "id": "2026-09-08-branchless-bench",
+   "title": "Branchless Python Bench",
+   "date": "2026-09-08",
+   "path": "./2026-09-08-branchless-bench/",
+   "tags": [
+    "AI coding"
+   ],
+   "blurb": "ブランチレス寄りの Python マイクロベンチ（ソース付き）。"
+  }
+ ]
 }
