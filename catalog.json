@@ -4,6 +4,19 @@
  "github": "https://github.com/pianopia/x-bm-demos",
  "demos": [
   {
+   "id": "openpoi-flapi-spots-2026-10-29",
+   "title": "Flapi × OpenPOI すれちがいスポット",
+   "date": "2026-10-29",
+   "path": "./openpoi-flapi-spots-2026-10-29/",
+   "tags": [
+    "Flapi",
+    "map",
+    "OpenPOI",
+    "API"
+   ],
+   "blurb": "OpenPOI API（@naogify）着想。周辺の実在施設をキー不要APIで引き、名刺交換しやすそうなスポットを地図に並べるトイ（スコアは仮）。"
+  },
+  {
    "id": "frustum-stream-2026-10-10",
    "title": "Frustum Streaming toy",
    "date": "2026-10-10",
