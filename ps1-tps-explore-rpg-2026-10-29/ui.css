@@ -52,3 +52,7 @@ body.touch #touch{display:block}
 #tbtn{position:fixed;right:18px;bottom:24px;display:grid;grid-template-columns:repeat(2,64px);gap:10px}
 #tbtn button{pointer-events:auto;height:64px;border-radius:50%;font-size:18px;background:#231d14cc}
 #cross{position:fixed;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:#fff8;pointer-events:none;display:none}
+#topR{align-items:center}
+#sndBtn.off{color:#8a7f6c;border-color:#3a3224}
+#vol{width:70px;accent-color:#d8b35a}
+@media(max-width:640px){#vol,.hideS{display:none}}

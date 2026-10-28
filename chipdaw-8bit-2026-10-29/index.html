@@ -1,0 +1,97 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CHIP DAW 8bit — AIネイティブ軽量チップチューンDAW</title>
+<link rel="icon" href="data:,"><link rel="stylesheet" href="./daw.css">
+</head><body>
+<header class="bar">
+  <h1>CHIP<span>DAW</span> <small>8bit</small></h1>
+  <div class="grp">
+    <button id="playSong" title="Space">▶ 曲</button><button id="playPat" title="Shift+Space">▶ パターン</button><button id="stop">■</button>
+    <label class="chk"><input type="checkbox" id="follow" checked>追従</label>
+  </div>
+  <div class="grp">
+    <label>BPM <input id="bpm" type="number" min="40" max="260" step="1"></label>
+    <label>行 <select id="rows"><option>16</option><option>32</option><option>64</option></select></label>
+    <label>Swing <input id="swing" type="range" min="0" max="0.5" step="0.01"></label>
+    <label>Echo <input id="echo" type="range" min="0" max="0.6" step="0.01"></label>
+    <label>音量 <input id="vol" type="range" min="0" max="1" step="0.01" value="0.7"></label>
+    <canvas id="scope" width="120" height="28"></canvas>
+  </div>
+  <div class="grp">
+    <select id="examples" title="例を開く"></select>
+    <button id="newSong">新規</button><button id="undo" title="Ctrl+Z">↶</button><button id="redo" title="Ctrl+Shift+Z">↷</button>
+    <button id="expJson">JSON保存</button><button id="impJson">JSON読込</button><input id="file" type="file" accept=".json,application/json" hidden>
+    <button id="expWav">WAV書出</button>
+  </div>
+</header>
+
+<section id="ai" class="panel">
+  <div class="aihead"><b>AI 作曲 / 効果音</b> <span class="badge">ローカル手続き生成（キーワード→ムード→シード付きルール）· クラウドLLM不使用 · APIキー不要</span></div>
+  <div class="airow"><input id="prompt" placeholder="例: 廃墟探索BGM 霧の聖堂 / ボス戦闘 速い 160bpm / Dマイナー 8小節 / 宝箱の効果音"><button id="gen" class="pri">生成</button><button id="alt" title="同じ指示で別シード">別案</button></div>
+  <div id="chips"></div>
+  <div class="airow small"><span>このパターンに →</span>
+    <button data-ai="fill" title="選択中チャンネルを他chの和音から生成">選択chを埋める</button>
+    <button data-ai="vary" title="リズムを保ってメロ変奏">変奏</button>
+    <button data-ai="bass" title="Pulse1/2から和音推定→Triangleベース">メロ→ベース</button>
+    <button data-ai="drums">ドラム生成</button>
+    <button data-ai="mutate">ミューテート</button>
+    <button data-ai="next" title="和音を進めた続きパターンを作ってオーダーに追加">続きのパターン</button>
+  </div>
+  <div id="aiLog"></div>
+</section>
+
+<main class="grid">
+  <aside class="left panel">
+    <h3>チャンネル</h3><div id="chans"></div>
+    <h3>パターン</h3><div id="pats"></div>
+    <div class="row"><button id="patNew">＋新規</button><button id="patDup">複製</button><button id="patClr">クリア</button><button id="patDel">削除</button></div>
+    <h3>オーダー <small>（曲の並び）</small></h3><div id="order"></div>
+    <div class="row"><button id="ordAdd" title="現在パターンを末尾に追加">＋追加</button><button id="ordL">←</button><button id="ordR">→</button><button id="ordDel">×</button></div>
+  </aside>
+  <section class="center panel">
+    <div class="rollbar">
+      <span class="seg" id="tools"><button data-tool="pen" class="on" title="クリックで置く・ドラッグで長さ">✎ ペン</button><button data-tool="erase" title="右クリック/ダブルクリックでも消せる">⌫ 消す</button></span>
+      <label>長さ <select id="len"><option>1</option><option selected>2</option><option>3</option><option>4</option><option>6</option><option>8</option><option>12</option><option>16</option></select></label>
+      <label>Oct <input id="oct" type="number" min="1" max="7" value="4"></label>
+      <label class="chk" title="PCキーボード z〜m / q〜i で入力しカーソルを進める"><input type="checkbox" id="stepRec">ステップ入力</label>
+      <label>名前 <input id="patName" size="8"></label>
+      <span id="chLabel"></span>
+    </div>
+    <canvas id="lanes" height="72"></canvas>
+    <div id="rollWrap"><canvas id="roll"></canvas></div>
+    <div id="noteEd"></div>
+  </section>
+  <aside class="right panel">
+    <h3>音色 <small id="instFor"></small></h3><div id="instEd"></div>
+    <h3>SFX サンドボックス</h3><div id="sfxEd"></div>
+  </aside>
+</main>
+
+<details class="help panel"><summary>ヘルプ / キー操作 / JSON スキーマ</summary>
+<div class="cols">
+<div><b>手で編集</b><ul>
+<li>ピアノロール: クリックで置く → そのまま横ドラッグで長さ。ノートをドラッグで移動、右端ドラッグで長さ。右クリック/ダブルクリック/⌫ツールで削除。</li>
+<li>キー: <kbd>Space</kbd> 曲再生/停止 · <kbd>Shift</kbd>+<kbd>Space</kbd> パターンループ · <kbd>z</kbd>〜<kbd>m</kbd>/<kbd>q</kbd>〜<kbd>i</kbd> 鍵盤（ステップ入力ON で書き込み）· <kbd>-</kbd>/<kbd>=</kbd> オクターブ</li>
+<li>選択ノート: <kbd>←</kbd><kbd>→</kbd> 移動 · <kbd>↑</kbd><kbd>↓</kbd> 半音（<kbd>Shift</kbd> でオクターブ）· <kbd>[</kbd><kbd>]</kbd> 長さ · <kbd>Del</kbd> 削除 · <kbd>Ctrl</kbd>+<kbd>Z</kbd> 取り消し</li>
+<li>レーン表示（ロール上の4段）をクリックでチャンネル切替。M=ミュート S=ソロ。</li>
+<li>ノート fx: arp=アルペジオ（16進の半音列 例 037）、slide=半音スライド。Noise ch の音程は 0〜15（NES の周期番号、0 が最も高い）。</li>
+</ul></div>
+<div><b>AI（ローカル）</b><ul>
+<li>プロンプトのキーワード（廃墟/探索/戦闘/クリア/明るい/和風/宇宙/速い/遅い、BPM・調・小節数）からムードを決め、和声進行→モチーフ反復メロ→ハモ/アルペジオ→ベース→ノイズドラムをシード付き乱数で組み立てる。</li>
+<li>「効果音/SE」やジャンプ・宝箱・ダメージ等の語なら SFX パラメータを生成してサンドボックスに入れる。</li>
+<li>生成結果は全部ふつうのノートなので、そのまま手で直せる。クラウド LLM ではない（オフラインでも動く）。</li>
+</ul></div>
+<div><b>Song JSON v1</b><pre>{ v:1, title, bpm, rpb:4, rows:32, swing, echo,
+  meta:{root:57, scale:'minor'},
+  instruments:[{name, wave:'pulse'|'tri'|'saw'|'noise',
+    duty:.125|.25|.5|.75, vol, a,d,s,r, vib, vibRate,
+    vibDelay, slide, arp:'047', noiseMode:'long'|'short'}],
+  channels:[{name, inst}],           // 4ch
+  patterns:[{name, ch:[[cell|null × rows] × 4]}],
+  order:[0,1,0,2] }
+cell = { n:MIDI(Noise:0-15), l:行数, v:1-15,
+         i?:音色上書き, fx?:{arp:'037', slide:12} }</pre>
+音源エンジン: <a href="../audio/chip.js">/audio/chip.js</a>（ゲームと共通）。ゲーム: <a href="../ps1-tps-explore-rpg-2026-10-29/">廃墟の灯火</a>
+</div></div></details>
+<footer><a href="../">← x-bm-demos 一覧</a> · 自動保存（localStorage）· 依存ライブラリなし（Web Audio API）</footer>
+<script type="module" src="./daw.js"></script>
+</body></html>

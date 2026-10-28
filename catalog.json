@@ -4,6 +4,21 @@
  "github": "https://github.com/pianopia/x-bm-demos",
  "demos": [
   {
+   "id": "chipdaw-8bit-2026-10-29",
+   "title": "CHIP DAW 8bit",
+   "date": "2026-10-29",
+   "path": "./chipdaw-8bit-2026-10-29/",
+   "tags": [
+    "chiptune",
+    "Web Audio",
+    "DAW",
+    "AI",
+    "tool"
+   ],
+   "blurb": "AIネイティブ×手編集の軽量8bit DAW。プロンプト→ローカル手続き生成で曲/効果音、4chピアノロール・パターン/オーダー・SFXサンドボックス・JSON/WAV書出。廃墟の灯火のBGMも開いて編集できる。",
+   "source": ""
+  },
+  {
    "id": "motionbricks-steer-toy-2026-10-29",
    "title": "MotionBricks Steer Toy",
    "date": "2026-10-29",
@@ -27,9 +42,10 @@
     "three.js",
     "PS1",
     "RPG",
-    "game"
+    "game",
+    "chiptune"
    ],
-   "blurb": "@codetaur PS1風レンダ着想の続き。TPS探索RPGのミニループ（ギミック・イベントフラグ・インベントリ）をブラウザで触るトイ。",
+   "blurb": "@codetaur PS1風レンダ着想の続き。TPS探索RPGのミニループ（ギミック・イベントフラグ・インベントリ）。8bit BGM（探索/戦闘/夜明け）と効果音つき、♪でミュート。",
    "source": "https://x.com/codetaur/status/2114482452798574633"
   },
   {

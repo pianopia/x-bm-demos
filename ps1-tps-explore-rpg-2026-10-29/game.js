@@ -4,6 +4,7 @@ import { U, T, M, createPipeline, computeBounce } from './render.js';
 import { buildWorld, find, cellAt, C, H, isIndoor } from './world.js';
 import * as St from './state.js';
 import * as Dlg from './dialogue.js';
+import * as Aud from './audio.js';
 const { S, ITEMS } = St;
 const $ = id => document.getElementById(id);
 const V3 = THREE.Vector3;
@@ -69,8 +70,8 @@ function renderInv() {
   $('quest').innerHTML = St.QUEST.map(([k, label]) => { const done = St.flag(k); let cls = done ? 'done' : ''; if (!done && !foundNow) { cls = 'now'; foundNow = true; } return `<div class="${cls}">${done ? '✔' : cls === 'now' ? '▶' : '・'} ${label}</div>`; }).join('') + `<div class="now" style="margin-top:4px">目的: ${now}</div>`;
   $('flags').innerHTML = St.FLAG_KEYS.map(k => `<span class="${St.flag(k) ? 'on' : ''}">${k}</span>`).join('');
 }
-function openInv() { if (mode !== 'play' || Dlg.isOpen()) return; document.exitPointerLock?.(); $('inv').classList.add('show'); renderInv(); }
-function closeInv() { $('inv').classList.remove('show'); }
+function openInv() { if (mode !== 'play' || Dlg.isOpen()) return; document.exitPointerLock?.(); $('inv').classList.add('show'); Aud.sfx('invOpen'); renderInv(); }
+function closeInv() { if ($('inv').classList.contains('show')) Aud.sfx('invClose'); $('inv').classList.remove('show'); }
 $('invBtn').onclick = () => $('inv').classList.contains('show') ? closeInv() : openInv();
 $('invClose').onclick = closeInv; $('useBtn').onclick = () => { const it = S.inv[invSel]; if (it) useItem(it.id); };
 
@@ -80,13 +81,13 @@ const dist2d = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const near = (id, r = 2.3) => dist2d(P.pos, OBJ[id]) < r;
 
 // ---------- actions (shared by E-interact and inventory use)
-function lightTorch() { St.setFlag('torchLit'); toast('松明に火がついた！'); }
-function lightBrazier() { St.setFlag('brazierLit'); toast('火鉢に火が灯った……床に何か光っている！'); }
-function breakCrate() { St.setFlag('crateBroken'); W.shatter(P.pos.clone()); shake = .35; toast('バキッ！ 木箱の山が崩れた'); }
-function openDoor() { St.removeItem('key'); St.setFlag('doorOpen'); shake = .2; toast('ギィィ……鉄扉が開いた'); }
+function lightTorch() { Aud.sfx('torch'); St.setFlag('torchLit'); toast('松明に火がついた！'); }
+function lightBrazier() { Aud.sfx('brazier'); St.setFlag('brazierLit'); toast('火鉢に火が灯った……床に何か光っている！'); }
+function breakCrate() { Aud.sfx('crate'); St.setFlag('crateBroken'); W.shatter(P.pos.clone()); shake = .35; toast('バキッ！ 木箱の山が崩れた'); }
+function openDoor() { Aud.sfx('door'); St.removeItem('key'); St.setFlag('doorOpen'); shake = .2; toast('ギィィ……鉄扉が開いた'); }
 function useItem(id) {
   const f = S.flags;
-  if (id === 'herb') { if (S.hp >= S.maxHp) return toast('体力は満タンだ'); St.removeItem('herb'); St.setHp(S.hp + 2); return toast('薬草を使った。体力が回復した'); }
+  if (id === 'herb') { if (S.hp >= S.maxHp) return toast('体力は満タンだ'); St.removeItem('herb'); Aud.sfx('heal'); St.setHp(S.hp + 2); return toast('薬草を使った。体力が回復した'); }
   if (id === 'memo') { closeInv(); St.setFlag('readMemo'); return Dlg.say([{ who: '古びたメモ', text: '――灯守りの覚え書き。\n「火は中庭の焚き火より。鍵は闇の倉に眠り、灯をともせば姿を現す。」' }, { who: '古びたメモ', text: '「鉄扉の前の床は崩れた。橋は東の部屋の歯車（レバー）で上がる。」\n……番人に見せれば何か教えてくれるかもしれない。' }]); }
   if (id === 'torch') {
     if (!f.torchLit && near('campfire', 2.4)) { closeInv(); return lightTorch(); }
@@ -124,7 +125,7 @@ function npcTalk() {
 // ---------- interactables
 const pick = (id) => { const p = W.pickups.find(q => q.id === id); return p; };
 function pickup(p) {
-  St.setFlag(p.flag); St.addItem(p.id); toast(`${ITEMS[p.id].icon} ${ITEMS[p.id].name} を手に入れた`);
+  Aud.sfx('pickup'); St.setFlag(p.flag); St.addItem(p.id); toast(`${ITEMS[p.id].icon} ${ITEMS[p.id].name} を手に入れた`);
   if (p.id === 'memo') toast('持ち物（I）から読める');
 }
 const INTER = [
@@ -132,7 +133,7 @@ const INTER = [
   { pos: OBJ.campfire, r: 2.0, label: () => St.hasItem('torch') && !St.flag('torchLit') ? '松明に火をつける' : '調べる：焚き火', act: () => St.hasItem('torch') && !St.flag('torchLit') ? lightTorch() : toast('暖かい焚き火だ。火種になりそうだ') },
   { pos: OBJ.crate, r: 2.2, on: () => !St.flag('crateBroken'), label: () => St.hasItem('rod') ? '鉄棒で木箱を壊す' : '調べる：木箱の山', act: () => St.hasItem('rod') ? breakCrate() : toast('重くて動かない。叩き壊す道具があれば……') },
   { pos: OBJ.brazier, r: 2.0, on: () => !St.flag('brazierLit'), label: () => St.flag('torchLit') ? '火鉢に火を灯す' : '調べる：火鉢', act: () => St.flag('torchLit') ? lightBrazier() : toast(St.hasItem('torch') ? '松明に火がついていない' : '冷えた火鉢だ。火種があれば灯せそうだ') },
-  { pos: OBJ.lever, r: 1.8, label: () => St.flag('bridgeUp') ? '調べる：レバー' : 'レバーを引く', act: () => { if (St.flag('bridgeUp')) return toast('レバーはもう倒れている'); St.setFlag('bridgeUp'); shake = .25; toast('ゴゴゴ……どこかで橋がせり上がった'); } },
+  { pos: OBJ.lever, r: 1.8, label: () => St.flag('bridgeUp') ? '調べる：レバー' : 'レバーを引く', act: () => { if (St.flag('bridgeUp')) return toast('レバーはもう倒れている'); Aud.sfx('lever'); St.setFlag('bridgeUp'); shake = .25; toast('ゴゴゴ……どこかで橋がせり上がった'); } },
   { pos: OBJ.door.clone().setZ(OBJ.door.z + 1.1), r: 1.9, on: () => !St.flag('doorOpen'), label: () => St.hasItem('key') ? '鍵で鉄扉を開ける' : '調べる：鉄扉', act: () => St.hasItem('key') ? openDoor() : toast('鍵がかかっている。錆びた鍵穴だ') },
   { pos: OBJ.gate.clone().setZ(OBJ.gate.z + .9), r: 1.8, on: () => !St.flag('gateOpen'), label: () => '調べる：鉄格子の門', act: () => toast('びくともしない。中庭の石板と連動しているようだ') },
   { pos: OBJ.altar, r: 2.1, label: () => St.flag('cleared') ? '祭壇' : '祭壇に触れる', act: touchAltar },
@@ -145,19 +146,19 @@ function updateFocus() {
   const pr = $('prompt');
   if (focus && !panelOpen()) { pr.style.display = 'block'; pr.innerHTML = `<b>[E]</b> ${focus.label()}`; } else pr.style.display = 'none';
 }
-function interact() { if (focus) focus.act(); }
+function interact() { if (!focus) return; const m = Aud.mark(); focus.act(); if (!Aud.playedSince(m)) Aud.sfx('interact'); }
 function touchAltar() {
   if (St.flag('cleared')) return toast('祭壇の灯が静かに揺れている');
-  if (!St.flag('slimeDefeated')) return toast('スライムが邪魔をして祭壇に近づけない！');
-  St.setFlag('cleared'); toast('祭壇に灯がともった！'); clearT = 2.2;
+  if (!St.flag('slimeDefeated')) return Aud.sfx('deny'), toast('スライムが邪魔をして祭壇に近づけない！');
+  St.setFlag('cleared'); Aud.sting(); toast('祭壇に灯がともった！'); clearT = 2.2;
 }
 
 // ---------- combat
 let shake = 0;
 function attack() {
   if (mode !== 'play' || panelOpen() || P.atkCd > 0) return;
-  if (!St.hasItem('rod')) { P.atkCd = .6; return toast('素手では心もとない。武器になる物を探そう'); }
-  P.atkCd = .45; P.swing = .3;
+  if (!St.hasItem('rod')) { P.atkCd = .6; Aud.sfx('deny'); return toast('素手では心もとない。武器になる物を探そう'); }
+  P.atkCd = .45; P.swing = .3; Aud.sfx('swing');
   const fwd = new V3(-Math.sin(camYaw), 0, -Math.cos(camYaw));
   if (!P.moving) P.face = Math.atan2(fwd.x, fwd.z);
   const facing = new V3(Math.sin(P.face), 0, Math.cos(P.face));
@@ -165,12 +166,12 @@ function attack() {
   if (!St.flag('crateBroken') && dist2d(P.pos, OBJ.crate) < 2.3) breakCrate();
 }
 function hitSlime(dir) {
-  SL.hp--; SL.flash = .2; SL.kb.copy(dir).multiplyScalar(5); shake = .12;
+  SL.hp--; SL.flash = .2; Aud.sfx(SL.hp <= 0 ? 'slimeDie' : 'slimeHit'); SL.kb.copy(dir).multiplyScalar(5); shake = .12;
   if (SL.hp <= 0) { SL.alive = false; SL.dead = .001; St.setFlag('slimeDefeated'); toast('スライムは霧に溶けて消えた！'); }
   else toast(`スライムに命中！（残り ${SL.hp}）`);
 }
 function hurt(n, from) {
-  if (P.inv > 0 || mode !== 'play') return; P.inv = 1.1; St.setHp(S.hp - n); shake = .25;
+  if (P.inv > 0 || mode !== 'play') return; P.inv = 1.1; St.setHp(S.hp - n); shake = .25; Aud.sfx('hurt');
   if (from) P.kb.copy(P.pos.clone().sub(from).setY(0).normalize().multiplyScalar(7));
   if (S.hp <= 0) { toast('力尽きた……中庭で目を覚ました'); S.deaths++; fadeT = 1; respawnAt = START.clone(); St.setHp(S.maxHp); }
   else toast('ダメージを受けた！');
@@ -200,6 +201,7 @@ function handleKey(code, e) {
   if (code === 'KeyF') attack();
   if (code === 'KeyI' || code === 'Tab') openInv();
   if (code === 'KeyP') cycleMode();
+  if (code === 'KeyM') $('sndBtn').click();
 }
 addEventListener('keydown', e => {
   if (['Tab', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
@@ -260,6 +262,7 @@ function updateLights(t) {
 
 // ---------- start / save
 function startGame(cont) {
+  Aud.unlock(); Aud.sfx('start');
   $('title').classList.remove('show'); mode = 'play';
   P.pos.copy(START); camYaw = 0; P.face = Math.PI;
   if (cont && S.pos && cellAt(S.pos[0], S.pos[1]) !== '#' && !'PB'.includes(cellAt(S.pos[0], S.pos[1]))) { P.pos.set(S.pos[0], 0, S.pos[1]); camYaw = S.yaw || 0; }
@@ -300,14 +303,14 @@ function frame() {
     collide(P.pos, .33);
     if (P.moving) { const target = Math.atan2(dir.x, dir.z); let d = target - P.face; d = Math.atan2(Math.sin(d), Math.cos(d)); P.face += d * Math.min(1, dt * 12); }
     const ch = cellAt(P.pos.x, P.pos.z);
-    if (ch === 'P' || (ch === 'B' && !f.bridgeUp)) { P.falling = true; P.vy = 0; toast('足元が崩れた！'); }
+    if (ch === 'P' || (ch === 'B' && !f.bridgeUp)) { P.falling = true; P.vy = 0; Aud.sfx('fall'); toast('足元が崩れた！'); }
   } else {
     P.vy -= 22 * dt; P.y += P.vy * dt;
     if (P.y < -3.5 && !fadeT) { fadeT = 1; respawnAt = HALL_SAFE.clone(); St.setHp(S.hp - 1); if (S.hp <= 0) { St.setHp(S.maxHp); respawnAt = START.clone(); toast('力尽きた……中庭で目を覚ました'); } else toast('穴に落ちた！（体力 -1）'); }
   }
   if (fadeT > 0) { fadeT = Math.max(0, fadeT - dt * 1.4); fade = Math.sin((1 - fadeT) * Math.PI); if (respawnAt && fadeT < .5) { P.pos.copy(respawnAt); P.y = 0; P.vy = 0; P.falling = false; P.kb.set(0, 0, 0); respawnAt = null; } } else fade = 0;
   // pressure plate (step on it)
-  if (!f.gateOpen && Math.abs(P.pos.x - OBJ.plate.x) < .8 && Math.abs(P.pos.z - OBJ.plate.z) < .8) { St.setFlag('gateOpen'); shake = .25; toast('ガコン……！ 北の門が上がっていく'); }
+  if (!f.gateOpen && Math.abs(P.pos.x - OBJ.plate.x) < .8 && Math.abs(P.pos.z - OBJ.plate.z) < .8) { St.setFlag('gateOpen'); Aud.sfx('gate'); shake = .25; toast('ガコン……！ 北の門が上がっていく'); }
   // player mesh anim
   pg.position.set(P.pos.x, P.y, P.pos.z); pg.rotation.y = P.face;
   const w = P.moving ? Math.sin(t * 11) : 0; legL.rotation.x = w * .6; legR.rotation.x = -w * .6; armL.rotation.x = -w * .4 - (St.flag('torchLit') ? .9 : 0);
@@ -343,8 +346,11 @@ function frame() {
   pg.visible = dd > .9 && !(P.inv > 0 && Math.floor(t * 20) % 2);
   // --- autosave position
   saveT += dt; if (mode === 'play' && saveT > 2) { saveT = 0; S.pos = [P.pos.x, P.pos.z]; S.yaw = camYaw; St.save(); }
+  Aud.update(dt, { mode, cleared: f.cleared, battle: SL.alive && f.doorOpen && mode === 'play' && dist2d(P.pos, SL.pos) < 8 && P.pos.z < 10.4, ducked: Dlg.isOpen() || $('inv').classList.contains('show') });
   pipe.render(scene, cam, renderMode, fade);
   requestAnimationFrame(frame);
 }
+Aud.mountUI($('sndBtn'), $('vol'));
+Dlg.setSfx(Aud.sfx);
 hud(); requestAnimationFrame(frame);
-window.__game = { St, P, W, SL, interact, useItem, get mode() { return mode; }, teleport: (x, z) => { P.pos.set(x, 0, z); }, get focus() { return focus?.label(); } };
+window.__game = { Aud, St, P, W, SL, interact, useItem, get mode() { return mode; }, teleport: (x, z) => { P.pos.set(x, 0, z); }, get focus() { return focus?.label(); } };

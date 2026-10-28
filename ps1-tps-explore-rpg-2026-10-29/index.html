@@ -4,7 +4,7 @@
 <script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.169.0/build/three.module.js"}}</script>
 </head><body>
 <div id="hud"><div id="hp"></div><div id="obj" class="panel"><small>目的</small><span id="objText"></span></div></div>
-<div id="topR"><button id="modeBtn" title="P キー">PS1＋バウンス</button><button id="invBtn" title="I / Tab">持ち物</button><a href="../"><button>一覧</button></a></div>
+<div id="topR"><button id="sndBtn" title="BGM/効果音 ON/OFF（M）">♪ ON</button><input id="vol" type="range" min="0" max="100" title="音量"><a href="../chipdaw-8bit-2026-10-29/?song=ruins" target="_blank" class="hideS"><button title="この曲を8bit DAWで開く">音源ツール</button></a><button id="modeBtn" title="P キー">PS1＋バウンス</button><button id="invBtn" title="I / Tab">持ち物</button><a href="../"><button>一覧</button></a></div>
 <div id="prompt" class="panel"></div>
 <div id="toasts"></div>
 <div id="flaglog"></div>
@@ -21,10 +21,10 @@
   <div class="ctl">
     <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>/矢印 移動　<kbd>Shift</kbd> 走る　マウス 視点（クリックでロック／ドラッグも可）<br>
     <kbd>E</kbd> 調べる・話す・拾う　<kbd>F</kbd>/左クリック 鉄棒を振る　<kbd>I</kbd>/<kbd>Tab</kbd> 持ち物・クエスト　<kbd>Esc</kbd> 閉じる<br>
-    <kbd>P</kbd> 描画切替（PS1＋バウンス / PS1 / クリーン）　会話は <kbd>E</kbd>/<kbd>Space</kbd>/クリック、選択肢は <kbd>1</kbd>〜<kbd>4</kbd>
+    <kbd>P</kbd> 描画切替（PS1＋バウンス / PS1 / クリーン）　<kbd>M</kbd> 音 ON/OFF　会話は <kbd>E</kbd>/<kbd>Space</kbd>/クリック、選択肢は <kbd>1</kbd>〜<kbd>4</kbd>
   </div>
   <small>進行（フラグ・持ち物・位置）はブラウザに自動セーブ。約5〜10分。<br>
-  着想: <a href="https://x.com/codetaur/status/2114482452798574633" target="_blank">@codetaur</a> の PS1風レンダ → 前作 <a href="../ps1-radiance-lite-2026-10-29/">PS1 Radiance Lite</a> の描画を流用。GIはフェイク（VPL 1バウンス）。</small>
+  着想: <a href="https://x.com/codetaur/status/2114482452798574633" target="_blank">@codetaur</a> の PS1風レンダ → 前作 <a href="../ps1-radiance-lite-2026-10-29/">PS1 Radiance Lite</a> の描画を流用。GIはフェイク（VPL 1バウンス）。<br>8bit BGM/効果音は自作 Web Audio 音源。曲は <a href="../chipdaw-8bit-2026-10-29/?song=ruins" target="_blank">8bit DAW</a> で開いて編集できる。</small>
 </div></div>
 <div id="clear" class="overlay"><div class="box panel">
   <h1 class="px">灯火、再び</h1>
