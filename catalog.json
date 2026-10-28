@@ -4,6 +4,21 @@
  "github": "https://github.com/pianopia/x-bm-demos",
  "demos": [
   {
+   "id": "ps1-tps-explore-rpg-2026-10-29",
+   "title": "PS1 TPS Explore RPG",
+   "date": "2026-10-29",
+   "path": "./ps1-tps-explore-rpg-2026-10-29/",
+   "tags": [
+    "BELENUS",
+    "three.js",
+    "PS1",
+    "RPG",
+    "game"
+   ],
+   "blurb": "@codetaur PS1風レンダ着想の続き。TPS探索RPGのミニループ（ギミック・イベントフラグ・インベントリ）をブラウザで触るトイ。",
+   "source": "https://x.com/codetaur/status/2114482452798574633"
+  },
+  {
    "id": "voronoi-fracture-toy-2026-10-29",
    "title": "Voronoi Fracture Toy (three.js)",
    "date": "2026-10-29",

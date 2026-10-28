@@ -1,0 +1,37 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>廃墟の灯火 — PS1 TPS Explore RPG</title>
+<link rel="icon" href="data:,"><link rel="stylesheet" href="./ui.css">
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.169.0/build/three.module.js"}}</script>
+</head><body>
+<div id="hud"><div id="hp"></div><div id="obj" class="panel"><small>目的</small><span id="objText"></span></div></div>
+<div id="topR"><button id="modeBtn" title="P キー">PS1＋バウンス</button><button id="invBtn" title="I / Tab">持ち物</button><a href="../"><button>一覧</button></a></div>
+<div id="prompt" class="panel"></div>
+<div id="toasts"></div>
+<div id="flaglog"></div>
+<div id="cross"></div>
+<div id="dlg" class="panel"><div id="dlgWho"></div><div id="dlgText"></div><div id="dlgCh"></div><div id="dlgNext">▼</div></div>
+<div id="inv" class="overlay"><div class="box panel">
+  <div><h3>持ち物</h3><div id="invList"></div><div id="invDesc">アイテムを選ぶと説明が出る。</div>
+    <div style="margin-top:8px"><button id="useBtn">使う（Enter）</button> <button id="invClose">閉じる（Esc）</button></div></div>
+  <div><h3>クエストログ</h3><div id="quest"></div><h3 style="margin-top:12px">イベントフラグ</h3><div id="flags"></div></div>
+</div></div>
+<div id="title" class="overlay show"><div class="box panel">
+  <h1 class="px">廃墟の灯火</h1><div class="sub">PS1 TPS Explore RPG — 霧の聖堂に灯をともせ</div>
+  <div><button id="newBtn">はじめから</button><button id="contBtn" style="display:none">つづきから</button></div>
+  <div class="ctl">
+    <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>/矢印 移動　<kbd>Shift</kbd> 走る　マウス 視点（クリックでロック／ドラッグも可）<br>
+    <kbd>E</kbd> 調べる・話す・拾う　<kbd>F</kbd>/左クリック 鉄棒を振る　<kbd>I</kbd>/<kbd>Tab</kbd> 持ち物・クエスト　<kbd>Esc</kbd> 閉じる<br>
+    <kbd>P</kbd> 描画切替（PS1＋バウンス / PS1 / クリーン）　会話は <kbd>E</kbd>/<kbd>Space</kbd>/クリック、選択肢は <kbd>1</kbd>〜<kbd>4</kbd>
+  </div>
+  <small>進行（フラグ・持ち物・位置）はブラウザに自動セーブ。約5〜10分。<br>
+  着想: <a href="https://x.com/codetaur/status/2114482452798574633" target="_blank">@codetaur</a> の PS1風レンダ → 前作 <a href="../ps1-radiance-lite-2026-10-29/">PS1 Radiance Lite</a> の描画を流用。GIはフェイク（VPL 1バウンス）。</small>
+</div></div>
+<div id="clear" class="overlay"><div class="box panel">
+  <h1 class="px">灯火、再び</h1>
+  <p>祭壇に灯がともり、聖堂を覆っていた霧が晴れていく……。<br><b id="clearStat"></b></p>
+  <button id="againBtn">もう一度（セーブを消して最初から）</button><button id="stayBtn">このまま歩き回る</button>
+  <small>フラグ・ギミック・インベントリのミニループ試作（BELENUS 探索ループの叩き台）。</small>
+</div></div>
+<div id="touch"><div id="joy"><div id="joyK"></div></div><div id="tbtn"><button data-k="KeyI">持</button><button data-k="KeyE">E</button><button data-k="KeyP">描</button><button data-k="KeyF">F</button></div></div>
+<script type="module" src="./game.js"></script>
+</body></html>
