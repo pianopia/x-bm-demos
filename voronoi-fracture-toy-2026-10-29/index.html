@@ -1,0 +1,103 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Voronoi Fracture Toy (three.js)</title>
+<style>body{margin:0;overflow:hidden;background:#1b1d22;font:13px system-ui,"Hiragino Sans",sans-serif}
+#ui{position:fixed;left:10px;top:10px;width:min(320px,calc(100vw - 20px));background:#121418e0;color:#e9e4da;padding:10px 12px;border-radius:10px;line-height:1.5}
+b{color:#ffb35c}small{color:#a8b0b8;display:block}a{color:#9cc8ff}label{display:block;margin-top:4px}input[type=range]{width:100%}
+button{font:inherit;margin:6px 6px 0 0;padding:3px 10px;border-radius:999px;border:1px solid #556;background:#26303a;color:#eee;cursor:pointer}button.on{background:#ffb35c;color:#221}
+#stat{margin-top:6px;font-variant-numeric:tabular-nums;color:#cfd6dc}canvas{display:block;touch-action:none}</style>
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.169.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.169.0/examples/jsm/"}}</script></head><body>
+<div id="ui"><b>Voronoi Fracture Toy</b>
+<small>X ブックマーク <a href="https://x.com/AssetLove/status/2114545208809734181" target="_blank">@AssetLove</a> の無料 Unreal Fracture Tool（ボロノイ分割＋物理デブリ）着想の<b>ブラウザトイ</b>。本物のUEツールではない。ブロックをクリック／タップ（またはSpace）で、当たった位置寄りにボロノイ点を撒いて凸セルに割り、破片を飛ばす。BELENUS の破壊表現の「割れ方の粒度」を触る用。ドラッグで回転。</small>
+<button id="go">割る (Space)</button><button id="reset">リセット (R)</button>
+<label>破片数 <span id="nv">20</span> <input id="n" type="range" min="8" max="40" value="20"></label>
+<label>衝撃の強さ <span id="pv">1.0</span> <input id="p" type="range" min="0.2" max="2.5" step="0.1" value="1"></label>
+<label>当たり位置への偏り <span id="bv">0.5</span> <input id="bias" type="range" min="0" max="1" step="0.05" value="0.5"></label>
+<label><input id="wire" type="checkbox"> ワイヤーフレーム（セル境界）</label>
+<label><input id="slow" type="checkbox"> スローモーション</label>
+<label>形 <select id="shape"><option value="stone">石ブロック</option><option value="crate">木箱</option><option value="pillar">柱</option></select></label>
+<div id="stat"></div></div>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {ConvexGeometry} from 'three/addons/geometries/ConvexGeometry.js';
+const $=id=>document.getElementById(id);
+const R=new THREE.WebGLRenderer({antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,2));R.setSize(innerWidth,innerHeight);R.shadowMap.enabled=true;R.shadowMap.type=THREE.PCFSoftShadowMap;document.body.append(R.domElement);
+const S=new THREE.Scene();S.background=new THREE.Color(0x24272e);S.fog=new THREE.Fog(0x24272e,18,40);
+const cam=new THREE.PerspectiveCamera(50,innerWidth/innerHeight,.1,100);cam.position.set(5.5,4,7);
+const ctl=new OrbitControls(cam,R.domElement);ctl.target.set(0,1,0);ctl.enableDamping=true;ctl.maxPolarAngle=1.45;ctl.update();
+S.add(new THREE.HemisphereLight(0xcfd8ff,0x3a3128,.9));const sun=new THREE.DirectionalLight(0xffe6c8,2.2);sun.position.set(6,10,4);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-10,right:10,top:10,bottom:-10});S.add(sun);
+const ground=new THREE.Mesh(new THREE.PlaneGeometry(60,60),new THREE.MeshStandardMaterial({color:0x4a4640,roughness:1}));ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;S.add(ground);
+const grid=new THREE.GridHelper(30,30,0x6a645a,0x3a3732);grid.position.y=.002;S.add(grid);
+onresize=()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();R.setSize(innerWidth,innerHeight)};
+const SHAPES={stone:{h:[1.3,.8,.8],out:0x8a8478,inn:0xd9c9a8},crate:{h:[1,1,1],out:0x9a6a3c,inn:0xe0b77c},pillar:{h:[.55,1.6,.55],out:0xb9b2a4,inn:0xf0e6d0}};
+let shape=SHAPES.stone,block,chunks=[],broken=false;
+const mat=new THREE.MeshStandardMaterial({vertexColors:true,roughness:.9,flatShading:true});
+const wireMat=new THREE.LineBasicMaterial({color:0xffb35c});
+function makeBlock(){if(block)S.remove(block);const [hx,hy,hz]=shape.h;
+ block=new THREE.Mesh(new THREE.BoxGeometry(hx*2,hy*2,hz*2),new THREE.MeshStandardMaterial({color:shape.out,roughness:.9}));block.position.y=hy;block.castShadow=block.receiveShadow=true;S.add(block)}
+function reset(){for(const c of chunks)S.remove(c.mesh);chunks=[];broken=false;makeBlock();block.visible=true;stat()}
+// --- convex clipping: polyhedron = list of polygons (Vector3[])
+function boxPolys(h){const [x,y,z]=h,V=(a,b,c)=>new THREE.Vector3(a,b,c);return[
+ [V(x,-y,-z),V(x,y,-z),V(x,y,z),V(x,-y,z)],[V(-x,-y,-z),V(-x,-y,z),V(-x,y,z),V(-x,y,-z)],
+ [V(-x,y,-z),V(-x,y,z),V(x,y,z),V(x,y,-z)],[V(-x,-y,-z),V(x,-y,-z),V(x,-y,z),V(-x,-y,z)],
+ [V(-x,-y,z),V(x,-y,z),V(x,y,z),V(-x,y,z)],[V(-x,-y,-z),V(-x,y,-z),V(x,y,-z),V(x,-y,-z)]]}
+function clip(polys,n,d){const out=[],cap=[];
+ for(const P of polys){const Q=[];for(let i=0;i<P.length;i++){const a=P[i],b=P[(i+1)%P.length],da=n.dot(a)-d,db=n.dot(b)-d;
+   if(da<=0)Q.push(a);if((da<=0)!==(db<=0)){const t=da/(da-db),p=a.clone().lerp(b,t);Q.push(p);cap.push(p)}}
+  if(Q.length>=3)out.push(Q)}
+ if(cap.length>=3){const c=new THREE.Vector3();cap.forEach(p=>c.add(p));c.divideScalar(cap.length);
+  const u=new THREE.Vector3().subVectors(cap[0],c).normalize(),w=new THREE.Vector3().crossVectors(n,u);
+  cap.sort((p,q)=>Math.atan2(w.dot(q.clone().sub(c)),u.dot(q.clone().sub(c)))-Math.atan2(w.dot(p.clone().sub(c)),u.dot(p.clone().sub(c))));out.push(cap)}
+ return out}
+function gauss(){return Math.sqrt(-2*Math.log(1-Math.random()))*Math.cos(6.283*Math.random())}
+function fracture(hitLocal){if(broken)return;broken=true;block.visible=false;
+ const [hx,hy,hz]=shape.h,N=+$('n').value,bias=+$('bias').value,pw=+$('p').value;
+ const seeds=[];for(let i=0;i<N;i++){let p;
+  if(Math.random()<bias){p=hitLocal.clone().add(new THREE.Vector3(gauss(),gauss(),gauss()).multiplyScalar(.35*Math.max(hx,hy,hz)))}
+  else p=new THREE.Vector3((Math.random()*2-1)*hx,(Math.random()*2-1)*hy,(Math.random()*2-1)*hz);
+  p.x=THREE.MathUtils.clamp(p.x,-hx*.98,hx*.98);p.y=THREE.MathUtils.clamp(p.y,-hy*.98,hy*.98);p.z=THREE.MathUtils.clamp(p.z,-hz*.98,hz*.98);seeds.push(p)}
+ const cOut=new THREE.Color(shape.out),cIn=new THREE.Color(shape.inn);
+ seeds.forEach((s,i)=>{let polys=boxPolys(shape.h);
+  for(let j=0;j<N&&polys.length;j++){if(i===j)continue;const n=new THREE.Vector3().subVectors(seeds[j],s);if(n.lengthSq()<1e-8)continue;n.normalize();
+   polys=clip(polys,n,n.dot(seeds[j].clone().add(s).multiplyScalar(.5)))}
+  const pts=[];polys.flat().forEach(p=>{if(!pts.some(q=>q.distanceToSquared(p)<1e-8))pts.push(p)});if(pts.length<4)return;
+  let g;try{g=new ConvexGeometry(pts)}catch(e){return}
+  const pos=g.attributes.position,col=new Float32Array(pos.count*3),A=new THREE.Vector3(),B=new THREE.Vector3(),C=new THREE.Vector3(),nn=new THREE.Vector3();
+  const shade=.85+Math.random()*.25;
+  for(let t=0;t<pos.count;t+=3){A.fromBufferAttribute(pos,t);B.fromBufferAttribute(pos,t+1);C.fromBufferAttribute(pos,t+2);
+   nn.subVectors(C,B).cross(new THREE.Vector3().subVectors(A,B)).normalize();const m=A.clone().add(B).add(C).divideScalar(3);
+   const outer=(Math.abs(Math.abs(nn.x)-1)<1e-3&&Math.abs(Math.abs(m.x)-hx)<1e-3)||(Math.abs(Math.abs(nn.y)-1)<1e-3&&Math.abs(Math.abs(m.y)-hy)<1e-3)||(Math.abs(Math.abs(nn.z)-1)<1e-3&&Math.abs(Math.abs(m.z)-hz)<1e-3);
+   const c=(outer?cOut:cIn).clone().multiplyScalar(outer?shade:1);for(let k=0;k<3;k++)c.toArray(col,(t+k)*3)}
+  g.setAttribute('color',new THREE.BufferAttribute(col,3));
+  const cen=new THREE.Vector3();pts.forEach(p=>cen.add(p));cen.divideScalar(pts.length);g.translate(-cen.x,-cen.y,-cen.z);
+  const mesh=new THREE.Mesh(g,mat);mesh.castShadow=mesh.receiveShadow=true;mesh.position.copy(cen).add(block.position);
+  const wf=new THREE.LineSegments(new THREE.EdgesGeometry(g),wireMat);wf.visible=$('wire').checked;mesh.add(wf);S.add(mesh);
+  const verts=pts.map(p=>p.clone().sub(cen));
+  const away=cen.clone().sub(hitLocal),dist=away.length();away.normalize();
+  const v=away.multiplyScalar(pw*5/(dist+.6)).add(new THREE.Vector3((Math.random()-.5),Math.random()*1.5+.5,(Math.random()-.5)).multiplyScalar(pw*1.5));
+  chunks.push({mesh,wf,verts,v,w:new THREE.Vector3(gauss(),gauss(),gauss()).multiplyScalar(pw*3),sleep:false})});
+ stat()}
+function stat(){const s=chunks.filter(c=>c.sleep).length;$('stat').textContent=broken?`破片 ${chunks.length} 個 / 静止 ${s}`:'未破壊：クリックかSpaceで割る'}
+// physics (toy): gravity + ground bounce using lowest hull vertex. chunk同士の衝突はなし
+const tmp=new THREE.Vector3(),dq=new THREE.Quaternion();
+function step(dt){for(const c of chunks){if(c.sleep)continue;c.v.y-=9.8*dt;c.mesh.position.addScaledVector(c.v,dt);
+  const a=c.w.length();if(a>1e-5){dq.setFromAxisAngle(tmp.copy(c.w).divideScalar(a),a*dt);c.mesh.quaternion.premultiply(dq)}
+  let minY=1e9;for(const p of c.verts){tmp.copy(p).applyQuaternion(c.mesh.quaternion);minY=Math.min(minY,tmp.y)}
+  const low=c.mesh.position.y+minY;if(low<0){c.mesh.position.y-=low;if(c.v.y<0)c.v.y*=-.28;c.v.x*=.82;c.v.z*=.82;c.w.multiplyScalar(.8);
+   if(c.v.lengthSq()<.02&&c.w.lengthSq()<.05){c.sleep=true}}}}
+// input
+const ray=new THREE.Raycaster(),ptr=new THREE.Vector2();let down=null;
+R.domElement.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
+R.domElement.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>6)return;
+ ptr.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(ptr,cam);
+ if(!broken){const h=ray.intersectObject(block)[0];if(h)fracture(h.point.sub(block.position))}else reset()});
+function randomHit(){const [hx,hy,hz]=shape.h;return new THREE.Vector3((Math.random()*2-1)*hx*.7,hy,(Math.random()*2-1)*hz*.7)}
+$('go').onclick=()=>{if(broken)reset();fracture(randomHit())};$('reset').onclick=reset;
+addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();if(broken)reset();fracture(randomHit())}if(e.key==='r'||e.key==='R')reset()});
+for(const [i,o] of [['n','nv'],['p','pv'],['bias','bv']])$(i).oninput=()=>$(o).textContent=$(i).value;
+$('wire').onchange=()=>chunks.forEach(c=>c.wf.visible=$('wire').checked);
+$('shape').onchange=()=>{shape=SHAPES[$('shape').value];reset()};
+reset();
+const clk=new THREE.Clock();let fr=0;
+R.setAnimationLoop(()=>{let dt=Math.min(clk.getDelta(),1/30);if($('slow').checked)dt*=.2;const n=4;for(let i=0;i<n;i++)step(dt/n);ctl.update();R.render(S,cam);if(++fr%15===0&&broken)stat()});
+</script></body></html>

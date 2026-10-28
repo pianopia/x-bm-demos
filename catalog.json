@@ -4,6 +4,32 @@
  "github": "https://github.com/pianopia/x-bm-demos",
  "demos": [
   {
+   "id": "voronoi-fracture-toy-2026-10-29",
+   "title": "Voronoi Fracture Toy (three.js)",
+   "date": "2026-10-29",
+   "path": "./voronoi-fracture-toy-2026-10-29/",
+   "tags": [
+    "BELENUS",
+    "three.js",
+    "VFX",
+    "destruction"
+   ],
+   "blurb": "@AssetLove の無料 UE Fracture Tool 着想。クリック位置寄りにボロノイ分割→凸セルの破片が重力で飛ぶブラウザトイ（本物のUEツールではない）。"
+  },
+  {
+   "id": "ps1-radiance-lite-2026-10-29",
+   "title": "PS1 Radiance Lite (three.js)",
+   "date": "2026-10-29",
+   "path": "./ps1-radiance-lite-2026-10-29/",
+   "tags": [
+    "BELENUS",
+    "three.js",
+    "lookdev",
+    "GI"
+   ],
+   "blurb": "@codetaur の Radiance Cascades×PS1風レンダ着想。低解像度・頂点スナップ・アフィンUV・ディザ＋フェイク1バウンスGI（VPL）をクリーン表示とA/B比較するトイ。"
+  },
+  {
    "id": "kit-village-stream-2026-10-29",
    "title": "Kit Village Stream (three.js)",
    "date": "2026-10-29",
