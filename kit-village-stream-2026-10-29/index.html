@@ -1,0 +1,96 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kit Village Stream (three.js)</title>
+<style>body{margin:0;overflow:hidden;background:#9fb7c9;font:13px system-ui,"Hiragino Sans",sans-serif}
+#ui{position:fixed;left:10px;top:10px;width:min(320px,calc(100vw - 20px));background:#141a20d9;color:#e9e4da;padding:10px 12px;border-radius:10px;line-height:1.5}
+b{color:#ffcf73}small{color:#a8b0b8;display:block}label{display:block;margin-top:4px}input[type=range]{width:100%}
+button{font:inherit;margin:6px 6px 0 0;padding:3px 10px;border-radius:999px;border:1px solid #556;background:#26303a;color:#eee;cursor:pointer}button.on{background:#ffcf73;color:#221}
+#stat{margin-top:6px;font-variant-numeric:tabular-nums}canvas{display:block;touch-action:none}</style>
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.169.0/build/three.module.js"}}</script></head><body>
+<div id="ui"><b>Kit Village Stream</b>
+<small>X ブックマーク @sorenxet「build a kit, not a town」着想。町を手で並べるのではなく、壁・屋根・煙突・窓などの<b>部品キット</b>から家のバリエーションを作り、チャンク単位で村を流し込むトイ。BELENUS / cloud-stream の「狭いゾーン＋遠景だけストリーム」の感触用。ドラッグで視線、WASD/矢印で移動（自動走行中も操作できる）。</small>
+<button id="auto" class="on">自動走行</button><button id="kit">キットを並べる</button><button id="reseed">村を作り直す</button>
+<label>バリエーション数 <span id="vv">10</span> <input id="var" type="range" min="1" max="12" value="10"></label>
+<label>ロード半径（チャンク） <span id="rv">3</span> <input id="rad" type="range" min="1" max="6" value="3"></label>
+<label><input id="fr" type="checkbox" checked> 視錐台の外は読まない（足元1チャンクは常時）</label>
+<div id="stat"></div></div>
+<script type="module">
+import * as THREE from 'three';
+const $=id=>document.getElementById(id);
+const R=new THREE.WebGLRenderer({antialias:true});R.setPixelRatio(Math.min(devicePixelRatio,2));R.setSize(innerWidth,innerHeight);R.shadowMap.enabled=true;document.body.append(R.domElement);
+const S=new THREE.Scene();S.background=new THREE.Color(0x9fb7c9);S.fog=new THREE.Fog(0x9fb7c9,40,120);
+const cam=new THREE.PerspectiveCamera(60,innerWidth/innerHeight,.1,200);
+S.add(new THREE.HemisphereLight(0xdfe8ff,0x5a4a32,1.1));const sun=new THREE.DirectionalLight(0xfff0d6,1.6);sun.position.set(30,50,20);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-50,right:50,top:50,bottom:-50,far:150});S.add(sun,sun.target);
+onresize=()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();R.setSize(innerWidth,innerHeight)};
+// --- seeded rng
+let seed=7;const rng=s=>()=>((s=Math.imul(s^s>>>15,1|s)+0x6D2B79F5|0,(s^s>>>14)>>>0)/4294967296);
+// --- kit materials (shared → 少ないマテリアル数)
+const M={plaster:new THREE.MeshStandardMaterial({color:0xe6dcc6,roughness:.95}),plaster2:new THREE.MeshStandardMaterial({color:0xd8c7a4,roughness:.95}),stone:new THREE.MeshStandardMaterial({color:0x8d877c,roughness:1}),
+timber:new THREE.MeshStandardMaterial({color:0x4a3322,roughness:.9}),roofR:new THREE.MeshStandardMaterial({color:0x8e3b2a,roughness:.85}),roofS:new THREE.MeshStandardMaterial({color:0x56606b,roughness:.8}),roofT:new THREE.MeshStandardMaterial({color:0xa58a4f,roughness:1}),
+glass:new THREE.MeshStandardMaterial({color:0xffd58a,emissive:0x6b4510,roughness:.4}),ground:new THREE.MeshStandardMaterial({color:0x6f8a4c,roughness:1}),path:new THREE.MeshStandardMaterial({color:0x9b8a68,roughness:1})};
+const box=(w,h,d,m,x,y,z)=>{const o=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),m);o.position.set(x,y,z);o.castShadow=o.receiveShadow=true;return o};
+function gable(w,d,h,m){const s=new THREE.Shape();s.moveTo(-w/2-.25,0);s.lineTo(0,h);s.lineTo(w/2+.25,0);s.lineTo(w/2+.05,-.12);s.lineTo(0,h-.25);s.lineTo(-w/2-.05,-.12);
+ const g=new THREE.ExtrudeGeometry(s,{depth:d+.5,bevelEnabled:false});g.translate(0,0,-(d+.5)/2);const o=new THREE.Mesh(g,m);o.castShadow=true;return o}
+function hip(w,d,h,m){const g=new THREE.ConeGeometry(Math.hypot(w,d)/2+.3,h,4,1);g.rotateY(Math.PI/4);g.scale(w/Math.hypot(w,d)*1.42,1,d/Math.hypot(w,d)*1.42);const o=new THREE.Mesh(g,m);o.position.y=h/2;o.castShadow=true;return o}
+// 1軒 = 部品の組み合わせ。パラメータを変えて N 種類のバリエーションを作る
+function makeVariant(i){const r=rng(1000+i*97);const G=new THREE.Group();
+ const w=3+Math.floor(r()*3),d=3+Math.floor(r()*2.5),floors=1+(r()<.45?1:0)+(r()<.12?1:0),fh=2.4;
+ const stoneBase=r()<.5,wall=r()<.6?M.plaster:M.plaster2;
+ for(let f=0;f<floors;f++){const y=f*fh,jet=f>0&&r()<.6?.25:0,ww=w+jet*2,dd=d+jet*2;
+  G.add(box(ww,fh,dd,f===0&&stoneBase?M.stone:wall,0,y+fh/2,0));
+  if(!(f===0&&stoneBase)){// 木組み（ハーフティンバー）
+   for(const sx of[-1,1])for(const sz of[-1,1])G.add(box(.18,fh,.18,M.timber,sx*ww/2,y+fh/2,sz*dd/2));
+   G.add(box(ww+.1,.16,dd+.1,M.timber,0,y+fh-.08,0));
+   if(r()<.7)for(let k=-1;k<=1;k+=2){const b=box(.12,fh*1.05,.12,M.timber,k*ww/4,y+fh/2,dd/2+.02);b.rotation.z=k*.55;G.add(b)}}
+  const nwin=Math.max(1,Math.floor(ww/1.6));for(let k=0;k<nwin;k++){const x=(k+.5)*ww/nwin-ww/2;if(f===0&&Math.abs(x)<.6)continue;G.add(box(.55,.7,.08,M.glass,x,y+1.35,dd/2+.03));G.add(box(.55,.7,.08,M.glass,x,y+1.35,-dd/2-.03))}}
+ G.add(box(.85,1.6,.1,M.timber,0,.8,d/2+.05));// ドア
+ const top=floors*fh,rt=r(),rm=[M.roofR,M.roofS,M.roofT][Math.floor(r()*3)],rh=1.3+r()*1.4;
+ const roof=rt<.65?gable(w+.3,d+.3,rh,rm):hip(w+.5,d+.5,rh,rm);if(rt<.65&&r()<.5)roof.rotation.y=Math.PI/2*(w<d?1:0);roof.position.y+=top;G.add(roof);
+ if(r()<.7)G.add(box(.5,rh+.8,.5,M.stone,w/2-.6,top+(rh+.8)/2,-d/4));// 煙突
+ if(r()<.3)G.add(box(1.2,1.6,1.6,wall,-w/2-.6,.8,0),box(1.4,.15,1.9,rm,-w/2-.6,1.65,0));// 小屋
+ G.userData={w:w+1.5,d:d+1.5};return G}
+let variants=[];function buildKit(){variants=[];for(let i=0;i<12;i++)variants.push(makeVariant(i+seed*13))}buildKit();
+// ground + chunks
+const CH=24;const ground=new THREE.Mesh(new THREE.PlaneGeometry(600,600),M.ground);ground.rotation.x=-Math.PI/2;ground.receiveShadow=true;S.add(ground);
+const chunks=new Map();let queue=[];
+function genChunk(cx,cz){const r=rng(seed*7919+cx*73856093^cz*19349663);const G=new THREE.Group();G.position.set(cx*CH,0,cz*CH);
+ const nv=+$('var').value;const p=box(CH,.04,2.2,M.path,0,.02,0);p.castShadow=false;G.add(p);if(r()<.5){const q=box(2.2,.04,CH,M.path,0,.021,0);q.castShadow=false;G.add(q)}
+ const placed=[];let houses=0;
+ for(let t=0;t<14;t++){const v=variants[Math.floor(r()*nv)];const x=(r()-.5)*(CH-6),z=(r()-.5)*(CH-6);if(Math.abs(z)<3.5)continue;
+  const rad=Math.max(v.userData.w,v.userData.d)/2+.6;if(placed.some(o=>Math.hypot(o[0]-x,o[1]-z)<o[2]+rad))continue;placed.push([x,z,rad]);
+  const h=v.clone();h.position.set(x,0,z);h.rotation.y=(z>0?Math.PI:0)+(r()-.5)*.35;G.add(h);houses++}
+ for(let t=0;t<6;t++){const x=(r()-.5)*CH,z=(r()-.5)*CH;if(placed.some(o=>Math.hypot(o[0]-x,o[1]-z)<o[2]+1)||Math.abs(z)<2)continue;
+  const tr=new THREE.Mesh(new THREE.ConeGeometry(1.1,3.2,7),M.roofT.clone());tr.material.color.setHex(0x3f5f2f);tr.position.set(x,1.9,z);tr.castShadow=true;G.add(tr)}
+ G.userData={born:performance.now(),houses};G.scale.y=.001;return G}
+// camera & input
+let pos=new THREE.Vector3(0,10,10),yaw=0,pitch=-.38,auto=true,kitMode=false;const keys={};onkeydown=e=>keys[e.key.toLowerCase()]=1;onkeyup=e=>keys[e.key.toLowerCase()]=0;
+let dr=null;R.domElement.onpointerdown=e=>dr=[e.clientX,e.clientY];onpointerup=()=>dr=null;onpointermove=e=>{if(!dr)return;yaw-=(e.clientX-dr[0])*.005;pitch=Math.max(-1.2,Math.min(.3,pitch-(e.clientY-dr[1])*.004));dr=[e.clientX,e.clientY]};
+$('auto').onclick=e=>{auto=!auto;e.target.className=auto?'on':''};
+$('var').oninput=e=>{$('vv').textContent=e.target.value;resetChunks()};$('rad').oninput=e=>$('rv').textContent=e.target.value;
+$('reseed').onclick=()=>{seed=Math.floor(Math.random()*1e6);buildKit();resetChunks();if(kitMode)showKit()};
+const kitG=new THREE.Group();S.add(kitG);
+function showKit(){kitG.clear();const nv=+$('var').value;variants.slice(0,nv).forEach((v,i)=>{const h=v.clone();h.position.set((i%4-1.5)*8,0,Math.floor(i/4)*-9);kitG.add(h)})}
+$('kit').onclick=e=>{kitMode=!kitMode;e.target.className=kitMode?'on':'';if(kitMode){showKit();for(const c of chunks.values())c.visible=false}else{kitG.clear();for(const c of chunks.values())c.visible=true}};
+function resetChunks(){for(const c of chunks.values())S.remove(c);chunks.clear();queue=[]}
+const fr=new THREE.Frustum(),pm=new THREE.Matrix4(),bb=new THREE.Box3();let last=performance.now(),loadsThisSec=0,lps=0,lt=0;
+function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;
+ if(kitMode){cam.position.set(Math.sin(now*.0002)*26,14,18+Math.cos(now*.0002)*6);cam.lookAt(0,1,-8)}else{
+ if(auto){yaw+=Math.sin(now*.00023)*.004;}const sp=(keys.shift?14:7)*dt,f=(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0)+(auto?.7:0),s=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0);
+ pos.x+=(-Math.sin(yaw)*f+Math.cos(yaw)*s)*sp;pos.z+=(-Math.cos(yaw)*f-Math.sin(yaw)*s)*sp;
+ cam.position.copy(pos);cam.rotation.set(pitch,yaw,0,'YXZ');}
+ cam.updateMatrixWorld();pm.multiplyMatrices(cam.projectionMatrix,cam.matrixWorldInverse);fr.setFromProjectionMatrix(pm);
+ const ccx=Math.round(pos.x/CH),ccz=Math.round(pos.z/CH),rad=+$('rad').value,useF=$('fr').checked,want=new Set();
+ for(let z=-rad;z<=rad;z++)for(let x=-rad;x<=rad;x++){if(x*x+z*z>rad*rad+.5)continue;const cx=ccx+x,cz=ccz+z;
+  if(useF&&Math.max(Math.abs(x),Math.abs(z))>1){bb.min.set(cx*CH-CH/2,0,cz*CH-CH/2);bb.max.set(cx*CH+CH/2,12,cz*CH+CH/2);if(!fr.intersectsBox(bb))continue}
+  want.add(cx+','+cz)}
+ // ストリーム予算：1フレーム1チャンクだけ生成（近い順）
+ const todo=[...want].filter(k=>!chunks.has(k)).map(k=>k.split(',').map(Number)).sort((a,b)=>Math.hypot(a[0]-ccx,a[1]-ccz)-Math.hypot(b[0]-ccx,b[1]-ccz));
+ if(todo.length&&!kitMode){const[cx,cz]=todo[0];const c=genChunk(cx,cz);chunks.set(cx+','+cz,c);S.add(c);loadsThisSec++}
+ let houses=0;for(const[k,c]of chunks){if(!want.has(k)){c.userData.out=(c.userData.out||now);if(now-c.userData.out>1200){S.remove(c);chunks.delete(k);continue}}else c.userData.out=0;
+  const a=Math.min(1,(now-c.userData.born)/450);c.scale.y=1-Math.pow(1-a,3);houses+=c.userData.houses}
+ if(now-lt>1000){lps=loadsThisSec;loadsThisSec=0;lt=now}
+ sun.position.set(pos.x+30,50,pos.z+20);sun.target.position.set(pos.x,0,pos.z);ground.position.set(pos.x,0,pos.z);
+ R.render(S,cam);
+ $('stat').innerHTML=kitMode?`キット: <b>${$('var').value}</b> 種類（同じマテリアル10個を共有）`:`ロード中チャンク <b>${chunks.size}</b> / 要求 ${want.size} ・ 家 <b>${houses}</b> 軒<br>バリエーション ${$('var').value} 種 ・ 生成 ${lps}/秒 ・ draw ${R.info.render.calls}<br><small>1フレーム1チャンクだけ生成（ストリーム予算）。視錐台チェックを外すと周囲全部を読む。</small>`;
+ requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+</script></body></html>
