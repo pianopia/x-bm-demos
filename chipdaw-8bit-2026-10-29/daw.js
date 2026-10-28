@@ -50,7 +50,9 @@ $('bpm').onchange = e => { snap(); song.bpm = Math.max(40, Math.min(260, +e.targ
 $('rows').onchange = e => { snap(); song.rows = +e.target.value; fixSong(); refresh(); save(); };
 $('swing').oninput = e => { song.swing = +e.target.value; save(); };
 $('echo').oninput = e => { song.echo = +e.target.value; if (chip.ctx) chip.wet.gain.setTargetAtTime(song.echo, chip.ctx.currentTime, .05); save(); };
-$('vol').oninput = e => { chip.unlock(); chip.setVolume(+e.target.value); };
+$('vol').oninput = e => { chip.unlock(); chip.setVolume(+e.target.value); paintMute(); };
+let volBefore = .7; function paintMute() { const m = +$('vol').value === 0; $('mute').textContent = m ? '🔇' : '🔊'; $('mute').classList.toggle('on', m); }
+$('mute').onclick = () => { const v = $('vol'); if (+v.value > 0) { volBefore = +v.value; v.value = 0; } else v.value = volBefore || .7; chip.unlock(); chip.setVolume(+v.value); paintMute(); };
 $('undo').onclick = undo; $('redo').onclick = redo;
 $('newSong').onclick = () => { if (!confirm('新規ソングにする？（今の曲は「JSON保存」していなければ取り消しで戻せる）')) return; const s = G.generateSong('', 0).song; s.title = 'Untitled'; s.patterns = [G.emptyPattern(s, 'A')]; s.order = [0]; s.bpm = 120; s.meta = null; loadSong(s); };
 const exSel = $('examples'); exSel.innerHTML = '<option value="">例を開く…</option>' + Object.entries(EX).map(([k, [l]]) => `<option value="${k}">${l}</option>`).join('');
@@ -81,7 +83,9 @@ function paintPats() {
   $('pats').innerHTML = '';
   song.patterns.forEach((P, i) => { const b = document.createElement('button'); b.textContent = `${String(i).padStart(2, '0')} ${P.name}`; if (i === pi) b.classList.add('on'); b.onclick = () => { pi = i; sel = null; refresh(); if (mode === 'pat') play(true); }; $('pats').append(b); });
   $('patName').value = pat().name;
+  $('patQuick').innerHTML = song.patterns.map((P, i) => `<option value="${i}"${i === pi ? ' selected' : ''}>${String(i).padStart(2, '0')} ${P.name}</option>`).join('');
 }
+$('patQuick').onchange = e => { pi = +e.target.value; sel = null; refresh(); scrollToNotes(); if (mode === 'pat') play(true); };
 let ordSel = 0;
 function paintOrder() {
   const h = mode === 'song' ? chip.head() : null; $('order').innerHTML = '';
@@ -248,7 +252,7 @@ function playSfx() { chip.unlock(); chip.sfx(sfxP); }
 function log(s) { $('aiLog').textContent = s; }
 function runPrompt(p, seed) {
   const a = G.analyze(p);
-  if (a.kind === 'sfx') { const { sfx } = G.generateSfx(p, seed); sfxP = sfx; paintSfx(); playSfx(); log(`効果音「${a.sfxType}」を生成 → 右のSFXサンドボックスで調整できる（seed ${seed}）`); $('sfxEd').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); return; }
+  if (a.kind === 'sfx') { const { sfx } = G.generateSfx(p, seed); sfxP = sfx; paintSfx(); playSfx(); log(`効果音「${a.sfxType}」を生成 → 「効果音」タブで調整できる（seed ${seed}）`); showTab('sfx'); return; }
   const { song: s, info } = G.generateSong(p, seed); stop(); loadSong(s); ch = 0; refresh(); scrollToNotes();
   log(`曲を生成: ${info.tags.join('・') || '標準'} / ${s.meta.scale} root ${noteName(s.meta.root)} / ${s.bpm}BPM / パターン${s.patterns.length}・オーダー${s.order.length}（seed ${seed}）— 全ノート手で編集可`);
   play(false);
@@ -292,7 +296,7 @@ addEventListener('keydown', e => {
 // ---------- refresh / loop
 function refresh() {
   $('bpm').value = song.bpm; $('rows').value = song.rows; $('swing').value = song.swing || 0; $('echo').value = song.echo || 0;
-  $('chLabel').innerHTML = `<span style="color:${COL[ch]}">● ${song.channels[ch].name}</span> <small style="color:var(--mut)">${song.title || ''}</small>`;
+  $('chLabel').innerHTML = `<span style="color:${COL[ch]}">● ${song.channels[ch].name}</span>`; $('songTitle').textContent = song.title || ''; $('songTitle').title = song.title || '';
   paintChans(); paintPats(); paintOrder(); paintInst(); paintNoteEd(); drawRoll(); drawLanes();
 }
 const scope = $('scope'), sctx = scope.getContext('2d'); let buf; let lastHead = '';
@@ -305,6 +309,22 @@ function loop() {
   requestAnimationFrame(loop);
 }
 addEventListener('resize', () => { drawRoll(); drawLanes(); });
+
+// ---------- tabs / side panel (all panels stay in DOM; only one visible)
+const LS_TAB = 'chipdaw-8bit-tab', side = $('side'), mobile = () => matchMedia('(max-width:820px)').matches;
+function showTab(t, open = true) {
+  document.querySelectorAll('#tabs [data-tab]').forEach(b => b.classList.toggle('on', open && b.dataset.tab === t));
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.dataset.pane === t));
+  side.classList.toggle('closed', !open); side.dataset.tab = t;
+  localStorage.setItem(LS_TAB, open ? t : '');
+  requestAnimationFrame(() => { drawRoll(); drawLanes(); });
+}
+$('tabs').onclick = e => { const b = e.target.closest('[data-tab]'); if (!b) return; const t = b.dataset.tab; showTab(t, !(b.classList.contains('on'))); };
+// mobile sheet: tap the roll area to close
+document.querySelector('.editor').addEventListener('pointerdown', () => { if (mobile() && !side.classList.contains('closed')) showTab(side.dataset.tab, false); });
+document.addEventListener('click', e => { document.querySelectorAll('details.pop[open]').forEach(d => { if (!d.contains(e.target)) d.open = false; }); });
+paintSfx();
+{ const t = localStorage.getItem(LS_TAB); showTab(t || 'ai', mobile() ? false : t !== ''); }
 refresh(); scrollToNotes(); requestAnimationFrame(loop);
 if (qs && EX[qs]) log(`「${EX[qs][0]}」を開いた。▶ 曲 で再生、ノートはそのまま編集できる（ゲーム本体には反映されない）`);
 else log('プロンプトかチップを押すとローカル生成 → そのまま手で編集。最初の再生でオーディオが有効になる。');
