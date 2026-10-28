@@ -1,0 +1,66 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>MotionBricks Steer Toy — 操舵×歩行スタイル×障害物トランジション</title>
+<link rel="icon" href="data:,">
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.169.0/build/three.module.js"}}</script>
+<style>
+:root{color-scheme:dark;--ink:#e8eef5;--mu:#93a3b5;--ac:#76b900;--ac2:#5eead4;--bg:rgba(12,17,24,.86);--line:#2a3542}
+*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#0d1117;color:var(--ink);font-family:ui-sans-serif,system-ui,"Hiragino Sans","Noto Sans JP",sans-serif}
+canvas#gl{display:block;width:100vw;height:100vh;touch-action:none}
+.panel{background:var(--bg);border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(6px)}
+#side{position:fixed;top:10px;left:10px;width:310px;max-height:calc(100vh - 20px);overflow:auto;padding:12px 14px;font-size:12.5px;line-height:1.5}
+#side h1{font-size:15px;margin:0 0 2px}#side h1 b{color:var(--ac)}
+.sub{color:var(--mu);font-size:11.5px}
+.warn{margin:8px 0;padding:7px 9px;border:1px solid #6b4b12;background:#2a1f0a;border-radius:8px;color:#fcd38a;font-size:11.5px}
+.row{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0}
+button{background:#18212c;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:5px 8px;font:inherit;font-size:12px;cursor:pointer}
+button.on{border-color:var(--ac);background:#1d2b12;color:#d9f99d}
+label{display:flex;align-items:center;gap:6px;margin:3px 0;cursor:pointer}
+input[type=range]{flex:1}
+h3{font-size:12px;margin:10px 0 3px;color:var(--ac2)}
+a{color:var(--ac2)}
+kbd{background:#222b36;border:1px solid #3a4655;border-radius:4px;padding:0 4px;font-size:11px}
+#hudWrap{position:fixed;right:10px;bottom:10px;padding:8px}
+#hudWrap .t{font-size:11px;color:var(--mu);margin:0 0 4px 2px}
+#hud{display:block;width:420px;height:178px}
+#status{position:fixed;top:10px;right:10px;padding:8px 12px;font-size:12px;max-width:380px}
+#status b{color:var(--ac)}
+#gen{position:fixed;top:44%;left:50%;transform:translate(-50%,-50%);padding:10px 18px;font-size:15px;font-weight:700;color:#d9f99d;border-color:var(--ac);opacity:0;pointer-events:none;transition:opacity .08s}
+#gen.show{opacity:1;animation:pulse .18s infinite alternate}
+@keyframes pulse{from{box-shadow:0 0 0 #76b90000}to{box-shadow:0 0 28px #76b900aa}}
+#hideBtn{position:fixed;left:10px;bottom:10px;display:none}
+@media (max-width:760px){#side{width:min(300px,calc(100vw - 20px));max-height:44vh}#hud{width:300px;height:128px}#status{top:auto;bottom:160px;right:10px;max-width:60vw}}
+</style></head><body>
+<canvas id="gl"></canvas>
+<div id="side" class="panel">
+  <h1><b>MotionBricks</b> Steer Toy</h1>
+  <div class="sub">操舵 → ターゲットポーズ → インビトウィーン生成、の「考え方」を触るトイ<br>Steer → target poses → inbetween, as a hands-on toy.</div>
+  <div class="warn">⚠ <b>本物の NVIDIA MotionBricks ではありません。</b>学習済み重み・ONNX は一切使っていません。棒人形の手続き的歩行＋キーポーズ補間で、仕組みの雰囲気を真似た教育用トイです。<br>
+  <b>Not real MotionBricks</b> — no model weights, no ONNX. A shaped, procedural teaching toy (stick-figure gait + keypose inbetweening).</div>
+  <h3>歩行スタイル / Style <span class="sub">(1–5)</span></h3>
+  <div class="row" id="styles"></div>
+  <h3>表示 / View</h3>
+  <label><input type="checkbox" id="tContacts" checked> 足の接地を表示 (C) <span class="sub">foot contacts</span></label>
+  <label><input type="checkbox" id="tGhost" checked> ターゲットをゴースト表示 (G) <span class="sub">ghost targets</span></label>
+  <label><input type="checkbox" id="tHud" checked> ポーズHUD (H) <span class="sub">context/target poses</span></label>
+  <label>生成トークン/フレーム <input type="range" id="sTok" min="4" max="64" step="1" value="24"><span id="vTok">24</span></label>
+  <div class="sub">少ないほど補間がカクつき、多いほど擬似レイテンシが伸びる（latency ≈ 30ms + 7ms×N）。</div>
+  <label>群衆 / Crowd <input type="range" id="sCrowd" min="0" max="20" step="1" value="0"><span id="vCrowd">0</span></label>
+  <div class="sub">crowdbricks のバッチ推論へのオマージュ。各クローンは別スタイルで徘徊（手続き的、バッチ推論ではない）。</div>
+  <h3>操作 / Controls</h3>
+  <div class="sub"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>/矢印 で操舵（カメラ基準）・地面クリック/タップで目的地・ドラッグで視点回転・ホイールでズーム。<br>木箱/低い壁→<b>Vault</b>、アーチ→<b>Duck</b>、柱→<b>Sidestep</b> を自動計画。</div>
+  <h3>元ネタ・本物 / Real thing</h3>
+  <div class="sub">
+  公式: <a href="https://github.com/NVlabs/motionbricks" target="_blank" rel="noopener">NVlabs/motionbricks</a> ・
+  重み: <a href="https://huggingface.co/nvidia/MotionBricks" target="_blank" rel="noopener">HF nvidia/MotionBricks</a><br>
+  ブラウザ版（本物のモデル）: <a href="https://huggingface.co/spaces/townbox/motionbricks-playground" target="_blank" rel="noopener">motionbricks-playground</a> by @victormustar<br>
+  ブックマーク: <a href="https://x.com/victormustar/status/2115531118292131887" target="_blank" rel="noopener">@victormustar</a> ・ <a href="https://x.com/alvarobartt/status/2114720297584574829" target="_blank" rel="noopener">@alvarobartt</a><br>
+  群衆: <a href="https://github.com/patch-gg/crowdbricks" target="_blank" rel="noopener">patch-gg/crowdbricks</a> ・ <a href="https://x.com/rehan_shei/status/2115191193890177086" target="_blank" rel="noopener">@rehan_shei</a><br>
+  <a href="../">← x-bm-demos 一覧</a> ・ <a href="#" id="hidePanel">パネルを隠す</a></div>
+</div>
+<button id="hideBtn" class="panel">≡ パネル</button>
+<div id="status" class="panel"></div>
+<div id="gen" class="panel">GENERATING…</div>
+<div id="hudWrap" class="panel"><div class="t">Context poses（直近）→ Target poses（予定）→ 生成フレーム</div><canvas id="hud"></canvas></div>
+<script type="module" src="./main.js"></script>
+</body></html>

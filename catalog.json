@@ -4,6 +4,20 @@
  "github": "https://github.com/pianopia/x-bm-demos",
  "demos": [
   {
+   "id": "motionbricks-steer-toy-2026-10-29",
+   "title": "MotionBricks Steer Toy",
+   "date": "2026-10-29",
+   "path": "./motionbricks-steer-toy-2026-10-29/",
+   "tags": [
+    "BELENUS",
+    "three.js",
+    "motion",
+    "AI"
+   ],
+   "blurb": "NVIDIA MotionBricks / @victormustar ブラウザデモ着想。操舵・歩行スタイル・障害物回避の感触を触るトイ（本物の重み／ONNXではない）。",
+   "source": "https://x.com/victormustar/status/2115531118292131887"
+  },
+  {
    "id": "ps1-tps-explore-rpg-2026-10-29",
    "title": "PS1 TPS Explore RPG",
    "date": "2026-10-29",
