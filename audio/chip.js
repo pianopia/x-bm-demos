@@ -196,23 +196,72 @@ export class Chip {
   head() { if (!this.ctx || !this.queue.length) return null; const now = this.ctx.currentTime; let h = null; for (const q of this.queue) if (q.t <= now) h = q; return h; }
 }
 
-/** Render song (once through order, or a single pattern) to a mono 16-bit WAV Blob via OfflineAudioContext. */
-export async function renderWav(song, { pattern = null, loops = 1, tail = 1.2, sr = 44100 } = {}) {
+/** Exact length in seconds of one pass (pattern index or full order) — the loop period. */
+export function songPeriod(song, { pattern = null, loops = 1 } = {}) { return rowTime(song, (pattern != null ? 1 : song.order.length) * song.rows * loops); }
+
+/**
+ * Render song (once through order, or a single pattern) to an AudioBuffer via OfflineAudioContext.
+ * opts: { pattern:null, loops:1, tail:1.2, sr:44100, seamless:false, xfade:0 }
+ *  - normal: length = loops·period + tail (release/echo ring out), starts 20ms in.
+ *  - seamless:true → game-loop asset. Length is exactly loops·period samples, notes start at sample 0.
+ *    The release/echo that spills past the end is rendered too and folded (added) onto the head of the
+ *    buffer, i.e. exactly what you hear when the loop wraps — so the seam is sample-continuous.
+ *    xfade (ms, default 0) optionally adds a short equal-power crossfade of the last xfade ms into the
+ *    head for material that isn't strictly periodic; the length stays exact.
+ */
+export async function renderSongBuffer(song, { pattern = null, loops = 1, tail = 1.2, sr = 44100, seamless = false, xfade = 0 } = {}) {
+  loops = Math.max(1, loops | 0);
   const pats = pattern != null ? Array(loops).fill(pattern) : Array(loops).fill(0).flatMap(() => song.order);
-  const rows = pats.length * song.rows, len = Math.ceil((rowTime(song, rows) + tail) * sr);
+  const rows = pats.length * song.rows, period = Math.round(rowTime(song, rows) * sr);
+  if (seamless) return renderSeamless(song, pats, period, Math.max(tail, 1.2, song.echo ? 4 : 0), sr, xfade);
+  const off = .02, len = Math.ceil((off + rowTime(song, rows) + tail) * sr);
   const oc = new OfflineAudioContext(1, len, sr), out = oc.createGain(); out.gain.value = .9; out.connect(oc.destination);
   if (song.echo) { const d = oc.createDelay(1), fb = oc.createGain(), w = oc.createGain(); d.delayTime.value = Math.min(1, songRowDur(song) * 3); fb.gain.value = .35; w.gain.value = song.echo; out.connect(d); d.connect(fb).connect(d); d.connect(w).connect(oc.destination); }
-  pats.forEach((pi, k) => { const P = song.patterns[pi]; if (!P) return; for (let r = 0; r < song.rows; r++) for (let ch = 0; ch < song.channels.length; ch++) { const cell = P.ch[ch]?.[r]; if (!cell || cell.n == null) continue; scheduleNote(oc, out, instFor(song, ch, cell), cell.n, .02 + rowTime(song, k * song.rows + r), (cell.l || 1) * songRowDur(song) * .96, cell); } });
-  return wavBlob(await oc.startRendering());
+  pats.forEach((pi, k) => { const P = song.patterns[pi]; if (!P) return; for (let r = 0; r < song.rows; r++) for (let ch = 0; ch < song.channels.length; ch++) { const cell = P.ch[ch]?.[r]; if (!cell || cell.n == null) continue; scheduleNote(oc, out, instFor(song, ch, cell), cell.n, off + rowTime(song, k * song.rows + r), (cell.l || 1) * songRowDur(song) * .96, cell); } });
+  return oc.startRendering();
 }
-export async function renderSfxWav(p, sr = 44100) { const oc = new OfflineAudioContext(1, Math.ceil(sr * ((p.dur + (p.gap || .05)) * (p.repeat || 1) + .3)), sr); scheduleSfx(oc, oc.destination, p, .01); return wavBlob(await oc.startRendering()); }
-function wavBlob(buf) {
+async function renderSeamless(song, pats, period, spill, sr, xfadeMs) {
+  // Render one pass + spill, then fold the spill onto the head (circular wrap). For echo (feedback),
+  // the fold is iterated so multi-cycle echo tails also wrap.
+  const len = period + Math.ceil(spill * sr);
+  const oc = new OfflineAudioContext(1, len, sr), out = oc.createGain(); out.gain.value = .9; out.connect(oc.destination);
+  if (song.echo) { const d = oc.createDelay(1), fb = oc.createGain(), w = oc.createGain(); d.delayTime.value = Math.min(1, songRowDur(song) * 3); fb.gain.value = .35; w.gain.value = song.echo; out.connect(d); d.connect(fb).connect(d); d.connect(w).connect(oc.destination); }
+  pats.forEach((pi, k) => { const P = song.patterns[pi]; if (!P) return; for (let r = 0; r < song.rows; r++) for (let ch = 0; ch < song.channels.length; ch++) { const cell = P.ch[ch]?.[r]; if (!cell || cell.n == null) continue; scheduleNote(oc, out, instFor(song, ch, cell), cell.n, rowTime(song, k * song.rows + r), (cell.l || 1) * songRowDur(song) * .96, cell); } });
+  const raw = (await oc.startRendering()).getChannelData(0);
+  const loop = new Float32Array(period);
+  for (let i = 0; i < raw.length; i++) loop[i % period] += raw[i];
+  const xf = Math.min(period >> 2, Math.round((xfadeMs || 0) / 1000 * sr));
+  if (xf > 0) { // equal-power blend of the tail end into the head; length unchanged
+    for (let i = 0; i < xf; i++) { const t = i / xf, a = Math.sin(t * Math.PI / 2), b = Math.cos(t * Math.PI / 2); loop[i] = loop[i] * a + loop[period - xf + i] * b; }
+  }
+  let peak = 0; for (let i = 0; i < period; i++) peak = Math.max(peak, Math.abs(loop[i]));
+  if (peak > 1) for (let i = 0; i < period; i++) loop[i] /= peak;
+  return { sampleRate: sr, length: period, numberOfChannels: 1, duration: period / sr, getChannelData: () => loop };
+}
+/** Render song to a mono 16-bit WAV Blob (backward compatible). Accepts the same opts as renderSongBuffer. */
+export async function renderWav(song, opts = {}) { return wavBlob(await renderSongBuffer(song, opts)); }
+export async function renderSfxBuffer(p, sr = 44100) { const oc = new OfflineAudioContext(1, Math.ceil(sr * ((p.dur + (p.gap || .05)) * (p.repeat || 1) + .3)), sr); scheduleSfx(oc, oc.destination, p, .01); return oc.startRendering(); }
+export async function renderSfxWav(p, sr = 44100) { return wavBlob(await renderSfxBuffer(p, sr)); }
+/** Song → MP3 Blob. opts as renderSongBuffer + { bitrate:128 }. */
+export async function renderMp3(song, opts = {}) { return encodeMp3(await renderSongBuffer(song, opts), opts); }
+export async function renderSfxMp3(p, opts = {}) { return encodeMp3(await renderSfxBuffer(p, opts.sr || 44100), opts); }
+export function wavBlob(buf) {
   const d = buf.getChannelData(0), n = d.length, ab = new ArrayBuffer(44 + n * 2), v = new DataView(ab);
   const ws = (o, s) => [...s].forEach((ch, i) => v.setUint8(o + i, ch.charCodeAt(0)));
   ws(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); ws(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
   v.setUint32(24, buf.sampleRate, true); v.setUint32(28, buf.sampleRate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); ws(36, 'data'); v.setUint32(40, n * 2, true);
   for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, d[i])) * 32767, true);
   return new Blob([ab], { type: 'audio/wav' });
+}
+/** Mono MP3 via vendored lamejs (LGPL, ./vendor/lamejs/lamejs.js), loaded lazily so the game never pays for it. */
+export async function encodeMp3(buf, { bitrate = 128 } = {}) {
+  const { Mp3Encoder } = await import('./vendor/lamejs/lamejs.js');
+  const d = buf.getChannelData(0), n = d.length, pcm = new Int16Array(n);
+  for (let i = 0; i < n; i++) pcm[i] = Math.max(-1, Math.min(1, d[i])) * 32767;
+  const enc = new Mp3Encoder(1, buf.sampleRate, bitrate), parts = [];
+  for (let i = 0; i < n; i += 1152) { const b = enc.encodeBuffer(pcm.subarray(i, i + 1152)); if (b.length) parts.push(new Uint8Array(b)); }
+  const f = enc.flush(); if (f.length) parts.push(new Uint8Array(f));
+  return new Blob(parts, { type: 'audio/mpeg' });
 }
 
 /** Build a song from tracker-text lines: { title, bpm, rows, instruments, channels, patterns:[[line,line,line,line]], order } */

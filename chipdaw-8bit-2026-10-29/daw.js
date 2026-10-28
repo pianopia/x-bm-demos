@@ -1,5 +1,5 @@
 // CHIP DAW 8bit — UI. Engine: ../audio/chip.js · AI: ./gen.js (local heuristics)
-import { Chip, noteName, renderWav, renderSfxWav, DEFAULT_INST } from '../audio/chip.js';
+import { Chip, noteName, renderSongBuffer, renderSfxBuffer, wavBlob, encodeMp3, songPeriod, DEFAULT_INST } from '../audio/chip.js';
 import { SONGS } from '../audio/songs.js';
 import { SFX, SFX_LABELS } from '../audio/sfx.js';
 import * as G from './gen.js';
@@ -62,7 +62,23 @@ const slug = () => (song.title || 'song').replace(/[^\w\u3040-\u30ff\u4e00-\u9ff
 $('expJson').onclick = () => download(new Blob([JSON.stringify(song, null, 1)], { type: 'application/json' }), slug() + '.chip.json');
 $('impJson').onclick = () => $('file').click();
 $('file').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const s = JSON.parse(await f.text()); if (!s.patterns) throw new Error('patterns がない'); stop(); loadSong(s); log(`読み込み: ${f.name}`); } catch (err) { alert('読み込み失敗: ' + err.message); } e.target.value = ''; };
-$('expWav').onclick = async () => { const b = $('expWav'); b.disabled = true; b.textContent = '書出中…'; try { download(await renderWav(song, mode === 'pat' ? { pattern: pi, loops: 2 } : {}), slug() + '.wav'); } catch (e) { alert('WAV 書き出し失敗: ' + e.message); } b.disabled = false; b.textContent = 'WAV書出'; };
+const expOpts = () => { const loop = $('expMode').value === 'loop', pat = $('expScope').value === 'pat'; return { pattern: pat ? pi : null, loops: Math.max(1, Math.min(16, +$('expLoops').value | 0 || 1)), seamless: loop, bitrate: +$('expKbps').value }; };
+function paintExpInfo() { if (!$('expInfo')) return; const o = expOpts(), sec = songPeriod(song, o); $('expInfo').textContent = `長さ ${sec.toFixed(3)} 秒${o.seamless ? '（ぴったり・余韻なし／折り返し済み）' : ' ＋ 余韻 1.2 秒'} · ${o.pattern != null ? 'パターン ' + (pat().name || pi) : 'オーダー ' + song.order.length + ' 個'} × ${o.loops}`; }
+$('expMode').onchange = () => { $('expLoops').value = $('expMode').value === 'loop' ? 1 : ($('expScope').value === 'pat' ? 2 : 1); paintExpInfo(); };
+['expScope', 'expLoops', 'expKbps'].forEach(id => $(id).addEventListener('change', paintExpInfo));
+async function exportAudio(fmt) {
+  const btns = [$('expWav'), $('expMp3')], b = fmt === 'mp3' ? $('expMp3') : $('expWav'), label = b.textContent;
+  btns.forEach(x => x.disabled = true); b.textContent = '書出中…';
+  try {
+    const o = expOpts(), buf = await renderSongBuffer(song, o);
+    const blob = fmt === 'mp3' ? await encodeMp3(buf, o) : wavBlob(buf);
+    const name = slug() + (o.pattern != null ? '-' + (pat().name || 'p' + pi).replace(/[^\w\u3040-\u30ff\u4e00-\u9fff-]+/g, '_') : '') + (o.seamless ? '-loop' : '') + '.' + fmt;
+    download(blob, name); log(`書き出し: ${name}（${buf.duration.toFixed(2)} 秒${o.seamless ? '・シームレスループ' : ''}）`);
+  } catch (e) { alert(fmt.toUpperCase() + ' 書き出し失敗: ' + e.message); }
+  btns.forEach(x => x.disabled = false); b.textContent = label;
+}
+$('expWav').onclick = () => exportAudio('wav');
+$('expMp3').onclick = () => exportAudio('mp3');
 
 // ---------- left panel
 function paintChans() {
@@ -238,12 +254,13 @@ function paintSfx() {
     ${num('f0', 30, 3000, 1, 440)}${num('f1', 30, 3000, 1, p.f0)}${num('dur', .02, 2, .01, .2)}${num('vol', 0, 1, .01, .5)}
     ${num('noise', 0, 1, .01)}${num('steps', 0, 24, 1)}${num('vib', 0, 100, 1)}${num('vibRate', 1, 30, .5, 12)}
     ${field('arp', `<input type="text" data-k="arp" value="${(p.arp || []).join(',')}" placeholder="0,4,7,12">`)}${num('arpRate', 4, 60, 1, 30)}${num('repeat', 1, 6, 1, 1)}
-  </div><div class="row"><button id="sfxPlay" class="pri">▶ 鳴らす</button><button id="sfxRnd">ランダム</button><button id="sfxWav">WAV</button><button id="sfxCopy">JSONコピー</button></div>`;
+  </div><div class="row"><button id="sfxPlay" class="pri">▶ 鳴らす</button><button id="sfxRnd">ランダム</button><button id="sfxWav">WAV</button><button id="sfxMp3">MP3</button><button id="sfxCopy">JSONコピー</button></div>`;
   $('sfxPre').onchange = e => { const k = e.target.value.slice(2); if (k) { sfxP = { ...SFX[k] }; paintSfx(); playSfx(); } };
   $('sfxEd').querySelectorAll('[data-k]').forEach(el => { el.oninput = () => { const k = el.dataset.k; let v = el.value; if (k === 'arp') v = v.split(/[ ,]+/).filter(Boolean).map(Number).filter(n => !isNaN(n)); else if (k !== 'wave') v = +v; sfxP[k] = v; const o = el.nextElementSibling; if (o?.tagName === 'OUTPUT') o.textContent = (+v).toFixed(el.step < 1 ? 2 : 0); localStorage.setItem(LS_SFX, JSON.stringify(sfxP)); }; el.onchange = playSfx; });
   $('sfxPlay').onclick = playSfx;
   $('sfxRnd').onclick = () => { const types = ['jump', 'coin', 'hit', 'laser', 'power', 'explode', 'magic', 'select']; const t = types[Math.random() * types.length | 0]; sfxP = G.generateSfx(t, Math.random() * 1e6 | 0).sfx; paintSfx(); playSfx(); };
-  $('sfxWav').onclick = async () => download(await renderSfxWav(sfxP), 'sfx.wav');
+  const sfxExp = async (fmt, b) => { const l = b.textContent; b.disabled = true; b.textContent = '書出中…'; try { const buf = await renderSfxBuffer(sfxP); download(fmt === 'mp3' ? await encodeMp3(buf) : wavBlob(buf), 'sfx.' + fmt); } catch (e) { alert(fmt.toUpperCase() + ' 書き出し失敗: ' + e.message); } b.disabled = false; b.textContent = l; };
+  $('sfxWav').onclick = e => sfxExp('wav', e.currentTarget); $('sfxMp3').onclick = e => sfxExp('mp3', e.currentTarget);
   $('sfxCopy').onclick = () => { navigator.clipboard?.writeText(JSON.stringify(sfxP)); log('SFX パラメータ JSON をコピーした'); };
 }
 function playSfx() { chip.unlock(); chip.sfx(sfxP); }
@@ -297,7 +314,7 @@ addEventListener('keydown', e => {
 function refresh() {
   $('bpm').value = song.bpm; $('rows').value = song.rows; $('swing').value = song.swing || 0; $('echo').value = song.echo || 0;
   $('chLabel').innerHTML = `<span style="color:${COL[ch]}">● ${song.channels[ch].name}</span>`; $('songTitle').textContent = song.title || ''; $('songTitle').title = song.title || '';
-  paintChans(); paintPats(); paintOrder(); paintInst(); paintNoteEd(); drawRoll(); drawLanes();
+  paintChans(); paintPats(); paintOrder(); paintInst(); paintNoteEd(); drawRoll(); drawLanes(); paintExpInfo();
 }
 const scope = $('scope'), sctx = scope.getContext('2d'); let buf; let lastHead = '';
 function loop() {
@@ -312,7 +329,7 @@ addEventListener('resize', () => { drawRoll(); drawLanes(); });
 
 // ---------- tabs / side panel (all panels stay in DOM; only one visible)
 const LS_TAB = 'chipdaw-8bit-tab', side = $('side'), mobile = () => matchMedia('(max-width:820px)').matches;
-function showTab(t, open = true) {
+function showTab(t, open = true) { if (t === "io") paintExpInfo();
   document.querySelectorAll('#tabs [data-tab]').forEach(b => b.classList.toggle('on', open && b.dataset.tab === t));
   document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.dataset.pane === t));
   side.classList.toggle('closed', !open); side.dataset.tab = t;

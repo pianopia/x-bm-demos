@@ -77,7 +77,17 @@
         <h3>曲を開く</h3>
         <div class="row"><select id="examples" title="例を開く"></select><button id="newSong">新規</button></div>
         <h3>保存 / 書き出し</h3>
-        <div class="row"><button id="expJson">JSON保存</button><button id="impJson">JSON読込</button><input id="file" type="file" accept=".json,application/json" hidden><button id="expWav">WAV書出</button></div>
+        <div class="row"><button id="expJson">JSON保存</button><button id="impJson">JSON読込</button><input id="file" type="file" accept=".json,application/json" hidden></div>
+        <h3>オーディオ書き出し（WAV / MP3）</h3>
+        <div class="kv exp">
+          <label>範囲</label><select id="expScope"><option value="song">曲全体（オーダー順）</option><option value="pat">現在のパターン</option></select>
+          <label>モード</label><select id="expMode"><option value="normal">通常（余韻あり）</option><option value="loop">ループ用（シームレス）</option></select>
+          <label>ループ回数</label><input id="expLoops" type="number" min="1" max="16" value="1">
+          <label>MP3</label><select id="expKbps"><option value="128">128 kbps</option><option value="192">192 kbps</option></select>
+        </div>
+        <div class="row"><button id="expWav" class="pri">WAV書出</button><button id="expMp3">MP3書出</button></div>
+        <p class="note" id="expInfo"></p>
+        <p class="note">ループ用はゲームのBGMループ向け。長さはパターン／曲の正確な周期。はみ出した余韻・エコーは頭に折り返して重ねるので、継ぎ目でプツッとしない（ゲーム側でそのままループ再生すればOK）。ゲーム用ループは WAV 推奨（MP3 は仕様上、先頭にエンコーダ遅延の無音が入りわずかに隙間が出ることがある）。</p>
         <p class="note">編集は自動保存（localStorage）。ゲーム曲は <code>?song=ruins</code> / <code>guardian</code> / <code>dawn</code> で開ける（ゲーム本体には反映されない）。</p>
         <p class="note">音源エンジン: <a href="../audio/chip.js">/audio/chip.js</a>（ゲームと共通）· ゲーム: <a href="../ps1-tps-explore-rpg-2026-10-29/">廃墟の灯火</a> · <a href="../">x-bm-demos 一覧</a></p>
       </div>
@@ -92,6 +102,7 @@
         <h3>AI（ローカル）</h3><ul>
 <li>キーワード（廃墟/探索/戦闘/クリア/明るい/和風/宇宙/速い/遅い、BPM・調・小節数）からムードを決め、和声進行→モチーフ反復メロ→ハモ/アルペジオ→ベース→ノイズドラムをシード付き乱数で組み立てる。</li>
 <li>「効果音/SE」やジャンプ・宝箱・ダメージ等の語なら SFX を生成して「効果音」タブに入れる。</li>
+<li>ループBGM向け: 「ループBGM 探索 2小節」などで生成 → 「入出力」で 範囲=現在のパターン or 曲全体、モード=ループ用 で書き出すと、ゲームでそのままループできる1周期ぶんの WAV/MP3 になる。</li>
 <li>生成結果は全部ふつうのノート。クラウド LLM ではない（オフラインでも動く）。</li>
 </ul>
         <details class="fold"><summary>Song JSON v1 スキーマ</summary><pre>{ v:1, title, bpm, rpb:4, rows:32, swing, echo,

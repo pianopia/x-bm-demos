@@ -76,3 +76,4 @@ a{color:var(--acc)}
   .panes{position:fixed;left:0;right:0;bottom:calc(46px + env(safe-area-inset-bottom));width:auto;max-height:58vh;border:1px solid var(--ln);border-radius:10px 10px 0 0;background:var(--pn);box-shadow:0 -10px 30px #000c;z-index:30}
 
 }
+.kv.exp{grid-template-columns:70px 1fr}.kv.exp label{color:var(--mut)}.kv.exp input[type=number]{width:100%}
