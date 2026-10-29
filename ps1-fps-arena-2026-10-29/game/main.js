@@ -20,8 +20,8 @@ if (!RENDER_MODES.has(renderMode)) {
 }
 
 const player = {
-  hp: 8,
-  maxHp: 8,
+  hp: 40,
+  maxHp: 40,
   herbs: 0,
   ammo: 12,
   magSize: 12,
@@ -41,20 +41,20 @@ const player = {
 
 const ENEMY_TYPES = {
   tank: {
-    name: '重装甲', hp: 6, touchDps: 18, color: T.iron,
+    name: '重装甲', hp: 6, touchDps: 6, color: T.iron,
     speed: 0.72, stop: 1.55, melee: 2.05,
     geo: () => new THREE.BoxGeometry(1.15, 1.4, 1.0, 2, 2, 2),
   },
   runner: {
-    name: 'ランナー', hp: 2, touchDps: 10, color: T.target,
+    name: 'ランナー', hp: 2, touchDps: 3.5, color: T.target,
     speed: 2.05, stop: 1.35, melee: 1.85,
     geo: () => new THREE.BoxGeometry(0.7, 1.35, 0.5, 2, 2, 1),
   },
   sniper: {
-    name: '狙撃兵', hp: 3, touchDps: 3, color: T.scout,
+    name: '狙撃兵', hp: 3, touchDps: 1, color: T.scout,
     speed: 0.88, stop: 5.5, melee: 2.4, ideal: 7.5,
     geo: () => new THREE.BoxGeometry(0.55, 1.85, 0.45, 2, 3, 1),
-    ranged: true, range: 12, shotRate: 1.45, shotDmg: 1,
+    ranged: true, range: 12, shotRate: 4.5, shotDmg: 1,
   },
 };
 
@@ -175,7 +175,7 @@ const PICKUP_SPOTS = [
   { kind: 'ammo', x: 5, z: 4.5, amount: 12, respawn: 18 },
   { kind: 'ammo', x: 0, z: -6, amount: 8, respawn: 22 },
   { kind: 'herb', x: -2, z: 5.5, amount: 1, respawn: 28 },
-  { kind: 'medkit', x: 4, z: -1, amount: 2, respawn: 35 },
+  { kind: 'medkit', x: 4, z: -1, amount: 10, respawn: 35 },
   { kind: 'herb', x: 6, z: -5, amount: 1, respawn: 30 },
 ];
 
@@ -377,7 +377,8 @@ function stopBgm() { clearInterval(bgmTimer); bgmTimer = null; }
 
 function updateHud() {
   const hp = Math.max(0, Math.min(player.maxHp, player.hp | 0));
-  $('hp').textContent = '♥'.repeat(hp) + '♡'.repeat(player.maxHp - hp);
+  const full = Math.ceil(hp / 5), slots = Math.ceil(player.maxHp / 5);
+  $('hp').textContent = '♥'.repeat(full) + '♡'.repeat(slots - full) + ` ${hp}/${player.maxHp}`;
   $('ammo').textContent = `${player.ammo} / ${player.reserve}`;
   $('herbs').textContent = `${player.herbs}`;
   $('cross').style.opacity = phase === 'play' ? '1' : '0.3';
@@ -416,9 +417,9 @@ function damagePlayer(amount, source = '') {
 function useHerb() {
   if (phase !== 'play' || player.herbs <= 0 || player.hp >= player.maxHp) return;
   player.herbs--;
-  player.hp++;
+  player.hp = Math.min(player.maxHp, player.hp + 5);
   sfxPickupHeal();
-  toast('🌿 回復草 +1♥');
+  toast('🌿 回復草 +5♥');
   updateHud();
 }
 
