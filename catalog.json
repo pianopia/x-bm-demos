@@ -4,6 +4,22 @@
  "github": "https://github.com/pianopia/x-bm-demos",
  "demos": [
   {
+   "id": "haikyo-no-tomoshibi-2026-10-29",
+   "title": "廃墟の灯火 (Expo web-play)",
+   "date": "2026-10-29",
+   "path": "./haikyo-no-tomoshibi-2026-10-29/",
+   "tags": [
+    "BELENUS",
+    "PS1",
+    "RPG",
+    "Expo",
+    "WebView",
+    "game"
+   ],
+   "blurb": "PS1風長編RPGのブラウザ試遊版（Expoアプリと同梱ゲームパック）。タイトル→探索、東庭コンテンツ拡張、メニューでタイトル戻り。Origin: pianopia/haikyo-no-tomoshibi。",
+   "source": "https://cursor.com/codebase/pianopia/haikyo-no-tomoshibi"
+  },
+  {
    "id": "chipdaw-8bit-2026-10-29",
    "title": "CHIP DAW 8bit",
    "date": "2026-10-29",

@@ -1,0 +1,23 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>廃墟の灯火 — ブラウザ試遊</title>
+<link rel="icon" href="data:,">
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100dvh;display:flex;align-items:center;justify-content:center;background:#050608;color:#ece4d2;font:15px "Hiragino Sans","Noto Sans JP",system-ui,sans-serif}
+.panel{max-width:420px;padding:28px 22px;border:2px solid #6b5a3a;background:#0b0d12ee;border-radius:4px;text-align:center}
+h1{margin:0;font-size:32px;color:#ffd27a;letter-spacing:.12em}
+.sub{margin:10px 0 22px;color:#c9b89a;line-height:1.6}
+a.btn{display:block;margin:8px 0;padding:10px 18px;border:2px solid #6b5a3a;border-radius:4px;color:#ece4d2;text-decoration:none;background:#231d14}
+a.primary{border-color:#d8b35a;background:#4a3a20}
+small{color:#9a9284;line-height:1.5;display:block;margin-top:16px}
+</style></head><body>
+<div class="panel">
+  <h1>廃墟の灯火</h1>
+  <p class="sub">PS1 TPS Explore RPG — モバイルブラウザ／WebView 試遊用（オフライン同梱）</p>
+  <a class="btn primary" href="play.html?start=new">はじめから</a>
+  <a class="btn" href="play.html?start=continue" id="cont">つづきから</a>
+  <small>Expo アプリ版は <code>npx expo start</code>。描画は WebGL + PS1 シェーダ（CDN なし）。</small>
+</div>
+<script>
+try{if(localStorage.getItem('ps1-tps-explore-rpg-v1'))document.getElementById('cont').style.borderColor='#d8b35a';}catch(e){}
+</script>
+</body></html>
