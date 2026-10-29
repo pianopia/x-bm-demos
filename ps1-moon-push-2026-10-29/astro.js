@@ -39,7 +39,7 @@ void main(){
 const FS = `uniform float uPS1,uAff,uGour;uniform sampler2D map;uniform vec2 uTS;uniform vec3 uEmi;uniform vec3 uFogC;uniform float uFogD;${LIGHT}
 varying vec2 vUv;varying vec2 vUvW;varying float vW;varying vec3 vP;varying vec3 vN;varying vec3 vG;
 void main(){vec2 uv=vUv;if(uPS1>.5){if(uAff>.5)uv=vUvW/vW;uv=(floor(uv*uTS)+.5)/uTS;}
- vec3 alb=texture2D(map,uv).rgb;vec3 lit=(uPS1>.5&&uGour>.5)?vG:lightAt(vP,normalize(vN),0.);
+ vec3 alb=texture2D(map,uv).rgb;vec3 lit=(uPS1>.5&&uGour>.5)?vG:lightAt(vP,normalize(vN));
  vec3 c=alb*lit+uEmi;float f=1.-exp(-length(vP-cameraPosition)*uFogD);gl_FragColor=vec4(mix(c,uFogC,f),1.);}`;
 
 function skinMat(tex, rep = [1, 1]) {
@@ -143,11 +143,20 @@ export async function loadStarfightAssets() {
       else o.material = pick(slots);
     }
   });
-  root.scale.setScalar(0.01);
   root.rotation.y = Math.PI;
+  root.scale.setScalar(1);
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(root);
+  const height = box.getSize(new THREE.Vector3()).y;
+  if (!height || !Number.isFinite(height)) throw new Error('astronaut.glb: invalid bounds');
+  root.scale.setScalar(1.65 / height);
+
   const src = astro.animations[0];
   if (!src) throw new Error('astronaut.glb: no animation');
   _clips = subClips(src);
+  for (const [k, c] of Object.entries(_clips)) {
+    if (!c.duration) console.warn('[astro] empty clip', k);
+  }
   _template = root;
   _rocksTemplate = rocks.scene;
   return { template: _template, clips: _clips, rocks: _rocksTemplate, tex: _tex };
@@ -167,10 +176,15 @@ export function spawnAstronaut(template, clips) {
   }
   let current = '';
   const play = (name, fade = 0.2) => {
-    if (!actions[name] || current === name) return;
+    const act = actions[name];
+    if (!act) {
+      console.warn('[astro] missing clip', name);
+      return;
+    }
+    if (current === name && act.isRunning()) return;
     const prev = current ? actions[current] : null;
-    actions[name].reset().play();
-    if (prev && fade > 0) actions[name].crossFadeFrom(prev, fade, false);
+    act.reset().fadeIn(fade).play();
+    if (prev && fade > 0) act.crossFadeFrom(prev, fade, false);
     current = name;
   };
   return {
