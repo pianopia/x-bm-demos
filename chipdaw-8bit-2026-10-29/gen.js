@@ -55,7 +55,8 @@ export function analyze(prompt) {
   let root = null; const mk = /\b([A-G])(#|b|♯|♭)?\s*(?:major|minor|maj|min|m\b)|([A-G])(#|♯|♭|b)?\s*(?:メジャー|マイナー|調)/.exec(prompt);
   if (mk) { const L = mk[1] || mk[3], acc = mk[2] || mk[4]; root = parseNote(L + (acc === '#' || acc === '♯' ? '#' : acc === 'b' || acc === '♭' ? 'b' : '') + '3'); }
   const bars = /(\d+)\s*(小節|bars?)/i.exec(prompt);
-  return { kind: wantsSong && !has(p, SFX_WORDS) && kind === 'sfx' && !sfxType ? 'song' : kind, sfxType: sfxType || 'coin', mood, bpm: clamp(bpm, 50, 220), root, bars: bars ? +bars[1] : null, tags };
+  const longReq = /長い|長め|長尺|フル|ロング|long|full/i.test(prompt);
+  return { kind: wantsSong && !has(p, SFX_WORDS) && kind === 'sfx' && !sfxType ? 'song' : kind, sfxType: sfxType || 'coin', mood, bpm: clamp(bpm, 50, 220), root, bars: bars ? Math.min(512, +bars[1]) : longReq ? 48 : null, tags };
 }
 
 // ---------- music theory helpers

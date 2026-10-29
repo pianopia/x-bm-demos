@@ -28,10 +28,12 @@
           <label class="chk" title="曲再生中に編集パターンを再生位置へ追従"><input type="checkbox" id="follow" checked>再生に追従</label>
         </div>
       </details>
+      <span class="seg zoom" title="横ズーム（時間）· Ctrl/⌘+ホイール・ピンチでも可"><button id="zxOut" title="横を縮小">−</button><button id="zxLbl" title="クリックで横を全体表示">↔1×</button><button id="zxIn" title="横を拡大">＋</button></span>
+      <span class="seg zoom" title="縦ズーム（音程）· Alt+ホイールでも可"><button id="zyOut" title="縦を縮小">−</button><button id="zyLbl" title="クリックで縦を標準に">↕1×</button><button id="zyIn" title="縦を拡大">＋</button></span>
       <span id="chLabel"></span>
     </div>
     <canvas id="lanes" height="72" title="クリックでチャンネル切替"></canvas>
-    <div id="rollWrap"><canvas id="roll"></canvas></div>
+    <div class="rollBox"><canvas id="roll"></canvas><div id="rollWrap" title=""><div id="rollSpace"></div></div></div>
     <div id="noteEd"></div>
     <div id="aiLog" class="status"></div>
   </section>
@@ -42,11 +44,11 @@
         <h3>チャンネル <small>M=ミュート S=ソロ</small></h3><div id="chans"></div>
         <h3>パターン</h3><div id="pats"></div>
         <div class="row"><button id="patNew">＋新規</button><button id="patDup">複製</button><button id="patClr">クリア</button><button id="patDel">削除</button></div>
-        <h3>オーダー <small>曲の並び</small></h3><div id="order"></div>
-        <div class="row"><button id="ordAdd" title="現在パターンを末尾に追加">＋追加</button><button id="ordL">←</button><button id="ordR">→</button><button id="ordDel">×</button></div>
+        <h3>オーダー <small>曲の並び</small></h3><div id="order"></div><p class="note" id="songLen"></p>
+        <div class="row"><button id="ordAdd" title="現在パターンを末尾に追加">＋追加</button><button id="ordDupAdd" title="現在パターンを複製し、選択中ステップの次に挿入（展開を作る用）">複製→挿入</button><button id="ordRep" title="今のオーダー列全体をくり返して長くする">列×N</button><button id="ordL">←</button><button id="ordR">→</button><button id="ordDel">×</button></div>
         <h3>曲設定</h3>
         <div class="kv">
-          <span>行数</span><select id="rows"><option>16</option><option>32</option><option>64</option></select><i></i>
+          <span>行数</span><select id="rows" title="1パターンの行数（16行=1小節）"><option>16</option><option>32</option><option>64</option><option>128</option><option>256</option></select><i></i>
           <span>Swing</span><input id="swing" type="range" min="0" max="0.5" step="0.01"><i></i>
           <span>Echo</span><input id="echo" type="range" min="0" max="0.6" step="0.01"><i></i>
         </div>
@@ -96,7 +98,9 @@
 <li>ピアノロール: クリックで置く → そのまま横ドラッグで長さ。ノートをドラッグで移動、右端ドラッグで長さ。右クリック/ダブルクリック/⌫ツールで削除。</li>
 <li><kbd>Space</kbd> 曲再生/停止 · <kbd>Shift</kbd>+<kbd>Space</kbd> パターンループ · <kbd>z</kbd>〜<kbd>m</kbd>/<kbd>q</kbd>〜<kbd>i</kbd> 鍵盤（ステップ入力ON で書き込み）· <kbd>-</kbd>/<kbd>=</kbd> オクターブ</li>
 <li>選択ノート: <kbd>←</kbd><kbd>→</kbd> 移動 · <kbd>↑</kbd><kbd>↓</kbd> 半音（<kbd>Shift</kbd> でオクターブ）· <kbd>[</kbd><kbd>]</kbd> 長さ · <kbd>Del</kbd> 削除 · <kbd>Ctrl</kbd>+<kbd>Z</kbd> 取り消し</li>
-<li>ロール上の4段レーンをクリックでチャンネル切替。M/S は「曲」タブ。</li>
+<li>ロール上の4段レーンをクリックでチャンネル切替（横ズーム中はその位置へスクロール）。M/S は「曲」タブ。</li>
+<li>ズーム: ツールバーの ↔（時間）/ ↕（音程）の −／＋。ラベルをクリックでリセット。<kbd>Ctrl</kbd>/<kbd>⌘</kbd>+ホイール（トラックパッドのピンチ）で横、<kbd>Alt</kbd>+ホイールで縦、<kbd>Shift</kbd>+ホイールで横スクロール。スマホは2本指ピンチ。</li>
+<li>長い曲: 1パターン最大256行（16小節）。「曲」タブのオーダーに並べて伸ばす。「複製→挿入」で展開を作り、「列×N」で全体をくり返す。合計の長さはオーダーの下に出る。AI生成は「64小節」「長い曲」などで長いオーダーになる。</li>
 <li>ノート fx: arp=アルペジオ（16進の半音列 例 037）、slide=半音スライド。Noise ch の音程は 0〜15（0 が最も高い）。</li>
 </ul>
         <h3>AI（ローカル）</h3><ul>

@@ -22,15 +22,18 @@ code{font:11px ui-monospace,monospace;color:var(--ink)}
 /* work area */
 .work{flex:1;min-height:0;display:flex}
 .editor{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;padding:6px 8px 4px}
-.rollbar{flex:none;display:flex;gap:8px;align-items:center;margin-bottom:5px;position:relative}
+.rollbar{flex:none;display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;margin-bottom:5px;position:relative}
 .seg{display:inline-flex}.seg button{border-radius:0;min-width:30px}.seg button:first-child{border-radius:4px 0 0 4px}.seg button:last-child{border-radius:0 4px 4px 0}
 #chLabel{margin-left:auto;font-weight:bold;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .pop{position:relative}.pop summary{list-style:none;cursor:pointer;color:var(--mut);border:1px solid var(--ln);border-radius:4px;padding:2px 8px;background:#1d2330;white-space:nowrap}
 .pop summary::-webkit-details-marker{display:none}.pop[open] summary{border-color:var(--acc);color:var(--ink)}
 .popbox{position:absolute;z-index:20;top:calc(100% + 4px);left:0;display:flex;flex-direction:column;gap:8px;padding:10px;background:var(--pn);border:1px solid var(--ln);border-radius:6px;box-shadow:0 8px 24px #000a}
 #lanes{flex:none;width:100%;height:72px;display:block;background:#090b10;border:1px solid var(--ln);border-radius:4px 4px 0 0;cursor:pointer}
-#rollWrap{flex:1;min-height:160px;overflow-y:auto;overflow-x:hidden;border:1px solid var(--ln);border-top:0;border-radius:0 0 4px 4px;background:#090b10}
-#roll{display:block;touch-action:pan-y;cursor:crosshair}
+.rollBox{flex:1;min-height:160px;position:relative;border:1px solid var(--ln);border-top:0;border-radius:0 0 4px 4px;background:#090b10;overflow:hidden}
+#roll{position:absolute;left:0;top:0;display:block;pointer-events:none}
+#rollWrap{position:absolute;inset:0;overflow:auto;touch-action:pan-x pan-y;cursor:crosshair;overscroll-behavior:contain}
+#rollSpace{pointer-events:none}
+.zoom button{min-width:0;padding:2px 6px}.zoom button[id$=Lbl]{font:11px ui-monospace,monospace;min-width:44px;color:var(--mut)}.zoom button:disabled{opacity:.4;cursor:default}
 #noteEd{flex:none;margin-top:4px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:26px;color:var(--mut);font-size:12px}
 #noteEd b{color:var(--ink)}#noteEd input[type=text]{width:56px}#noteEd button{padding:1px 6px}
 .status{flex:none;font-size:11px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:1.4em}
@@ -56,7 +59,7 @@ h3{margin:12px 0 6px;font-size:13px;color:var(--acc)}h3:first-child{margin-top:0
 #chans .ch button{padding:0 6px;font-size:11px}#chans .ch button.on{background:#5a2330;border-color:#ff7a8a}#chans .ch button.solo.on{background:#4a4220;border-color:#ffd166}
 #chans .ch small{display:block;color:var(--mut);font-size:11px}
 #pats{display:flex;flex-wrap:wrap;gap:4px}#pats button{font-size:12px;padding:2px 8px}
-#order{display:flex;flex-wrap:wrap;gap:3px;min-height:26px}#order button{font:12px ui-monospace,monospace;padding:2px 6px}
+#order{display:flex;flex-wrap:wrap;gap:3px;min-height:26px;max-height:30vh;overflow-y:auto;position:relative;align-content:flex-start}#order button{font:12px ui-monospace,monospace;padding:2px 6px}
 #order button.play{box-shadow:0 0 0 2px var(--acc) inset}
 .kv{display:grid;grid-template-columns:70px 1fr 40px;gap:4px 6px;align-items:center;font-size:12px}
 .kv span{color:var(--mut)}.kv output{color:var(--ink);font:11px ui-monospace,monospace;text-align:right}
@@ -73,6 +76,7 @@ a{color:var(--acc)}
   .side{border-left:0;border-top:1px solid var(--ln);flex-direction:column}
   .tabs{width:auto;flex-direction:row;padding:3px 4px calc(3px + env(safe-area-inset-bottom))}
   .tabs button{flex:1;padding:4px 0}
+  .rollbar{gap:4px 5px}.zoom button[id$=Lbl]{min-width:38px;padding:2px 3px}.rollbar>label{font-size:0;gap:0}.rollbar>label select{font-size:13px}#chLabel{font-size:11px}
   .panes{position:fixed;left:0;right:0;bottom:calc(46px + env(safe-area-inset-bottom));width:auto;max-height:58vh;border:1px solid var(--ln);border-radius:10px 10px 0 0;background:var(--pn);box-shadow:0 -10px 30px #000c;z-index:30}
 
 }

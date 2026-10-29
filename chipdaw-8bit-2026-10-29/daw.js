@@ -46,8 +46,10 @@ function paintTransport() { $('playSong').classList.toggle('on', mode === 'song'
 $('playSong').onclick = () => mode === 'song' ? stop() : play(false);
 $('playPat').onclick = () => mode === 'pat' ? stop() : play(true);
 $('stop').onclick = stop;
-$('bpm').onchange = e => { snap(); song.bpm = Math.max(40, Math.min(260, +e.target.value || 120)); save(); };
-$('rows').onchange = e => { snap(); song.rows = +e.target.value; fixSong(); refresh(); save(); };
+$('bpm').onchange = e => { snap(); song.bpm = Math.max(40, Math.min(260, +e.target.value || 120)); paintLen(); paintExpInfo(); save(); };
+$('rows').onchange = e => { const nr = +e.target.value, lost = song.patterns.reduce((a, P) => a + P.ch.reduce((b, c) => b + c.slice(nr).filter(Boolean).length, 0), 0);
+  if (nr < song.rows && lost && !confirm(`行数を ${nr} にすると、${lost} 個のノートが切れる（取り消しで戻せる）。続ける？`)) { e.target.value = song.rows; return; }
+  snap(); const grow = nr > song.rows; song.rows = nr; fixSong(); refresh(); save(); if (grow) log(`行数 ${nr}（${nr / (song.rpb * 4)} 小節/パターン）。増えた後半は空。横ズーム ↔ でスクロール編集できる`); };
 $('swing').oninput = e => { song.swing = +e.target.value; save(); };
 $('echo').oninput = e => { song.echo = +e.target.value; if (chip.ctx) chip.wet.gain.setTargetAtTime(song.echo, chip.ctx.currentTime, .05); save(); };
 $('vol').oninput = e => { chip.unlock(); chip.setVolume(+e.target.value); paintMute(); };
@@ -105,60 +107,88 @@ $('patQuick').onchange = e => { pi = +e.target.value; sel = null; refresh(); scr
 let ordSel = 0;
 function paintOrder() {
   const h = mode === 'song' ? chip.head() : null; $('order').innerHTML = '';
-  song.order.forEach((p, k) => { const b = document.createElement('button'); b.textContent = String(p).padStart(2, '0'); if (k === ordSel) b.classList.add('on'); if (h && h.o === k) b.classList.add('play'); b.title = song.patterns[p]?.name; b.onclick = () => { ordSel = k; pi = p; sel = null; refresh(); }; $('order').append(b); });
+  const O = $('order'), bar = song.rows / (song.rpb * 4);
+  song.order.forEach((p, k) => { const b = document.createElement('button'); b.textContent = String(p).padStart(2, '0'); if (k === ordSel) b.classList.add('on'); if (h && h.o === k) b.classList.add('play'); b.title = `#${k + 1} · ${song.patterns[p]?.name} · ${fmtT(songPeriod(song, {}) * k / song.order.length)}〜 · ${k * bar + 1}小節目`; b.onclick = () => { ordSel = k; pi = p; sel = null; refresh(); }; O.append(b); });
+  const pb = O.querySelector('.play') || (h ? null : O.querySelector('.on')); if (pb && (pb.offsetTop < O.scrollTop || pb.offsetTop + pb.offsetHeight > O.scrollTop + O.clientHeight)) O.scrollTop = pb.offsetTop - O.clientHeight / 2;
+  paintLen();
 }
+const fmtT = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+function paintLen() { const el = $('songLen'); if (!el) return; const bpp = song.rows / (song.rpb * 4), sec = songPeriod(song, {}); el.textContent = `${song.order.length} ステップ · ${song.order.length * bpp} 小節 · ${fmtT(sec)}（1パターン ${bpp} 小節 = ${songPeriod(song, { pattern: 0 }).toFixed(1)} 秒）`; }
 $('patName').onchange = e => { snap(); pat().name = e.target.value || 'P'; paintPats(); save(); };
 $('patNew').onclick = () => { snap(); song.patterns.push(G.emptyPattern(song, String.fromCharCode(65 + song.patterns.length % 26))); pi = song.patterns.length - 1; refresh(); save(); };
 $('patDup').onclick = () => { snap(); const P = clone(pat()); P.name += "'"; song.patterns.push(P); pi = song.patterns.length - 1; refresh(); save(); };
 $('patClr').onclick = () => { snap(); pat().ch[ch] = Array(song.rows).fill(null); sel = null; refresh(); save(); };
 $('patDel').onclick = () => { if (song.patterns.length < 2) return; snap(); song.patterns.splice(pi, 1); song.order = song.order.filter(i => i !== pi).map(i => i > pi ? i - 1 : i); pi = Math.max(0, pi - 1); fixSong(); refresh(); save(); };
+$('ordDupAdd').onclick = () => { snap(); const P = clone(pat()); P.name = (P.name || 'P').replace(/'*$/, '') + "'"; song.patterns.push(P); const ni = song.patterns.length - 1, at = Math.min(song.order.length, ordSel + 1); song.order.splice(at, 0, ni); ordSel = at; pi = ni; sel = null; refresh(); save(); log(`パターン ${ni} を複製してオーダー #${at + 1} に挿入`); };
+$('ordRep').onclick = () => { const n = Math.max(1, Math.min(64, +prompt('現在のオーダー列を何回くり返す？（合計の回数）', '2') | 0)); if (n < 2) return; snap(); const o = song.order.slice(); song.order = Array.from({ length: n }, () => o).flat(); refresh(); save(); };
 $('ordAdd').onclick = () => { snap(); song.order.push(pi); ordSel = song.order.length - 1; refresh(); save(); };
 $('ordDel').onclick = () => { if (song.order.length < 2) return; snap(); song.order.splice(ordSel, 1); ordSel = Math.min(ordSel, song.order.length - 1); refresh(); save(); };
 const ordMove = d => { const j = ordSel + d; if (j < 0 || j >= song.order.length) return; snap(); [song.order[ordSel], song.order[j]] = [song.order[j], song.order[ordSel]]; ordSel = j; refresh(); save(); };
 $('ordL').onclick = () => ordMove(-1); $('ordR').onclick = () => ordMove(1);
 
-// ---------- piano roll
-const roll = $('roll'), rctx = roll.getContext('2d'), wrap = $('rollWrap'), KW = 44, CH_H = 13;
+// ---------- piano roll (viewport canvas + scroll spacer; zoom X/Y)
+const roll = $('roll'), rctx = roll.getContext('2d'), wrap = $('rollWrap'), space = $('rollSpace'), KW = 44, CH_H0 = 13;
+const LS_ZOOM = 'chipdaw-8bit-zoom', ZX = [1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32], ZY = [.5, .65, .8, 1, 1.25, 1.5, 2, 2.5, 3];
+let zoom = (() => { try { const z = JSON.parse(localStorage.getItem(LS_ZOOM)); if (z && z.x >= 1 && z.y > 0) return { x: Math.min(32, z.x), y: Math.max(.5, Math.min(3, z.y)) }; } catch (e) {} return { x: 1, y: 1 }; })();
+const chH = () => Math.max(6, Math.round(CH_H0 * zoom.y));
 const pitches = () => { if (isNoise()) return Array.from({ length: 16 }, (_, i) => i); const [lo, hi] = ch === 2 ? [28, 76] : [43, 96]; const a = []; for (let n = hi; n >= lo; n--) a.push(n); return a; };
-let geo = { cw: 20, P: [] };
-function drawRoll() {
-  const P = pitches(), dpr = devicePixelRatio || 1, W = wrap.clientWidth, Hh = P.length * CH_H, rows = song.rows, cw = (W - KW) / rows;
-  if (roll.width !== W * dpr || roll.height !== Hh * dpr) { roll.width = W * dpr; roll.height = Hh * dpr; roll.style.width = W + 'px'; roll.style.height = Hh + 'px'; }
-  geo = { cw, P }; const c = rctx; c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, Hh);
-  const noise = isNoise();
-  P.forEach((n, i) => { const black = !noise && [1, 3, 6, 8, 10].includes(n % 12); c.fillStyle = black ? '#0b0e14' : '#10141c'; c.fillRect(KW, i * CH_H, W - KW, CH_H);
-    c.fillStyle = noise ? '#1a1f2b' : black ? '#20242e' : '#cfd6e3'; c.fillRect(0, i * CH_H, KW - 2, CH_H - 1);
-    if (noise || n % 12 === 0) { c.fillStyle = noise || black ? '#9aa4b8' : '#202530'; c.font = '10px ui-monospace,monospace'; c.fillText(noise ? 'N' + n.toString(16).toUpperCase() : noteName(n), 3, i * CH_H + 10); }
-    if (!noise && n % 12 === 0) { c.fillStyle = '#2a3140'; c.fillRect(KW, i * CH_H + CH_H - 1, W - KW, 1); } });
-  for (let r = 0; r <= rows; r++) { c.fillStyle = r % 16 === 0 ? '#4a5568' : r % song.rpb === 0 ? '#2a3140' : '#171b24'; c.fillRect(KW + r * cw, 0, 1, Hh); }
-  const rowY = n => { const i = P.indexOf(n); return i < 0 ? null : i * CH_H; };
-  // ghosts
-  if (!noise) pat().ch.forEach((a, k) => { if (k === ch || isNoise(k)) return; c.fillStyle = COL[k] + '30'; a.forEach((x, r) => { if (!x) return; const y = rowY(x.n); if (y != null) c.fillRect(KW + r * cw + 1, y + 2, x.l * cw - 2, CH_H - 4); }); });
-  // cursor column (step input)
-  if ($('stepRec').checked) { c.fillStyle = '#7ef0c822'; c.fillRect(KW + cursor * cw, 0, cw, Hh); }
-  arr().forEach((x, r) => { if (!x) return; const y = rowY(x.n); if (y == null) return; const alpha = Math.round(120 + 135 * (x.v ?? 12) / 15).toString(16).padStart(2, '0');
-    c.fillStyle = COL[ch] + alpha; c.fillRect(KW + r * cw + 1, y + 1, x.l * cw - 2, CH_H - 2);
-    if (x.fx?.arp || x.fx?.slide) { c.fillStyle = '#000a'; c.fillRect(KW + r * cw + 1, y + CH_H - 4, x.l * cw - 2, 2); }
-    if (r === sel) { c.strokeStyle = '#fff'; c.lineWidth = 2; c.strokeRect(KW + r * cw + 1, y + 1, x.l * cw - 2, CH_H - 2); }
-    if (x.l * cw > 26) { c.fillStyle = '#000c'; c.font = '9px ui-monospace,monospace'; c.fillText(noise ? 'N' + x.n.toString(16).toUpperCase() : noteName(x.n), KW + r * cw + 3, y + 10); } });
-  const h = chip.playing ? chip.head() : null;
-  if (h && h.p === pi) { c.fillStyle = '#7ef0c8'; c.fillRect(KW + h.r * cw, 0, 2, Hh); }
+let geo = { cw: 20, P: [], h: CH_H0, sx: 0, sy: 0 };
+function layout() { // size spacer → scroll extents; returns geometry
+  const P = pitches(), VW = wrap.clientWidth, h = chH(), fit = Math.max(1, (VW - KW) / song.rows), cw = fit * zoom.x;
+  const W = Math.ceil(KW + song.rows * cw), H = P.length * h;
+  if (space.style.width !== W + 'px') space.style.width = W + 'px'; if (space.style.height !== H + 'px') space.style.height = H + 'px';
+  return { P, cw, h, W, H };
 }
-function hitAt(e) { const b = roll.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top; const row = Math.max(0, Math.min(song.rows - 1, Math.floor((x - KW) / geo.cw))), pIdx = Math.max(0, Math.min(geo.P.length - 1, Math.floor(y / CH_H))); return { x, row, pIdx, n: geo.P[pIdx] }; }
+function drawRoll() {
+  const { P, cw, h, H } = layout(), dpr = devicePixelRatio || 1, VW = wrap.clientWidth, VH = wrap.clientHeight, rows = song.rows;
+  if (roll.width !== Math.round(VW * dpr) || roll.height !== Math.round(VH * dpr)) { roll.width = Math.round(VW * dpr); roll.height = Math.round(VH * dpr); roll.style.width = VW + 'px'; roll.style.height = VH + 'px'; }
+  const sx = wrap.scrollLeft, sy = wrap.scrollTop; geo = { cw, P, h, sx, sy };
+  const c = rctx; c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, VW, VH); c.fillStyle = '#090b10'; c.fillRect(0, 0, VW, VH);
+  const noise = isNoise(), X = r => KW + r * cw - sx, Y = i => i * h - sy, Hh = Math.min(VH, H - sy);
+  const i0 = Math.max(0, Math.floor(sy / h)), i1 = Math.min(P.length - 1, Math.ceil((sy + VH) / h));
+  const r0 = Math.max(0, Math.floor(sx / cw)), r1 = Math.min(rows, Math.ceil((sx + VW - KW) / cw) + 1);
+  c.save(); c.beginPath(); c.rect(KW, 0, VW - KW, VH); c.clip();
+  for (let i = i0; i <= i1; i++) { const n = P[i], black = !noise && [1, 3, 6, 8, 10].includes(n % 12); c.fillStyle = black ? '#0b0e14' : '#10141c'; c.fillRect(KW, Y(i), VW - KW, h); if (!noise && n % 12 === 0) { c.fillStyle = '#2a3140'; c.fillRect(KW, Y(i) + h - 1, VW - KW, 1); } }
+  const bar = song.rpb * 4, beatVis = cw * song.rpb >= 5, minorVis = cw >= 5;
+  for (let r = r0; r <= r1; r++) { const isBar = r % bar === 0, isBeat = r % song.rpb === 0; if (!isBar && !(isBeat ? beatVis : minorVis)) continue; c.fillStyle = isBar ? '#4a5568' : isBeat ? '#2a3140' : '#171b24'; c.fillRect(Math.round(X(r)), 0, 1, Hh); }
+  if (cw * bar >= 28) { c.fillStyle = '#5f6b80'; c.font = '9px ui-monospace,monospace'; for (let r = r0 - (r0 % bar); r < r1; r += bar) if (r >= 0 && X(r) >= KW - 1) c.fillText(String(r / bar + 1), X(r) + 2, 9); }
+  const rowY = n => { const i = P.indexOf(n); return i < 0 ? null : Y(i); };
+  const vis = (r, l) => X(r + l) >= KW && X(r) <= VW;
+  if (!noise) pat().ch.forEach((a, k) => { if (k === ch || isNoise(k)) return; c.fillStyle = COL[k] + '30'; a.forEach((x, r) => { if (!x || !vis(r, x.l)) return; const y = rowY(x.n); if (y != null) c.fillRect(X(r) + 1, y + 2, Math.max(1, x.l * cw - 2), Math.max(1, h - 4)); }); });
+  if ($('stepRec').checked) { c.fillStyle = '#7ef0c822'; c.fillRect(X(cursor), 0, Math.max(2, cw), Hh); }
+  const fs = Math.min(10, h - 3);
+  arr().forEach((x, r) => { if (!x || !vis(r, x.l)) return; const y = rowY(x.n); if (y == null || y + h < 0 || y > VH) return; const alpha = Math.round(120 + 135 * (x.v ?? 12) / 15).toString(16).padStart(2, '0'), w = Math.max(1, x.l * cw - 2);
+    c.fillStyle = COL[ch] + alpha; c.fillRect(X(r) + 1, y + 1, w, h - 2);
+    if (x.fx?.arp || x.fx?.slide) { c.fillStyle = '#000a'; c.fillRect(X(r) + 1, y + h - 4, w, 2); }
+    if (r === sel) { c.strokeStyle = '#fff'; c.lineWidth = 2; c.strokeRect(X(r) + 1, y + 1, w, h - 2); }
+    if (x.l * cw > 26 && fs >= 7) { c.fillStyle = '#000c'; c.font = `${fs - 1}px ui-monospace,monospace`; c.fillText(noise ? 'N' + x.n.toString(16).toUpperCase() : noteName(x.n), X(r) + 3, y + h / 2 + fs / 2 - 1); } });
+  const hd = chip.playing ? chip.head() : null;
+  if (hd && hd.p === pi) { c.fillStyle = '#7ef0c8'; c.fillRect(X(hd.r), 0, 2, Hh); }
+  c.restore();
+  // sticky keyboard column
+  for (let i = i0; i <= i1; i++) { const n = P[i], black = !noise && [1, 3, 6, 8, 10].includes(n % 12);
+    c.fillStyle = noise ? '#1a1f2b' : black ? '#20242e' : '#cfd6e3'; c.fillRect(0, Y(i), KW - 2, h - 1);
+    if ((noise || n % 12 === 0) && fs >= 6) { c.fillStyle = noise || black ? '#9aa4b8' : '#202530'; c.font = `${fs}px ui-monospace,monospace`; c.fillText(noise ? 'N' + n.toString(16).toUpperCase() : noteName(n), 3, Y(i) + h / 2 + fs / 2 - 1); } }
+  c.fillStyle = '#2a3140'; c.fillRect(KW - 2, 0, 2, Hh);
+  paintZoom();
+}
+function hitAt(e) { const b = wrap.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top, fx = (x + wrap.scrollLeft - KW) / geo.cw;
+  const row = Math.max(0, Math.min(song.rows - 1, Math.floor(fx))), pIdx = Math.max(0, Math.min(geo.P.length - 1, Math.floor((y + wrap.scrollTop) / geo.h))); return { x, fx, row, pIdx, n: geo.P[pIdx] }; }
 function noteAt(row, n) { const a = arr(); for (let r = row; r >= 0; r--) { const x = a[r]; if (x && x.n === n && r + x.l > row) return r; } return null; }
 let drag = null;
-roll.addEventListener('contextmenu', e => e.preventDefault());
-roll.addEventListener('pointerdown', e => {
+wrap.addEventListener('contextmenu', e => e.preventDefault());
+wrap.addEventListener('pointerdown', e => {
+  if (e.pointerType === 'mouse' && (e.offsetX > wrap.clientWidth || e.offsetY > wrap.clientHeight)) return; // scrollbar
   const h = hitAt(e); chip.unlock();
   if (h.x < KW) { preview(h.n); return; }
   const hit = noteAt(h.row, h.n), a = arr();
-  if (tool === 'erase' || e.button === 2) { if (hit != null) { snap(); a[hit] = null; sel = null; afterEdit(); } drag = { mode: 'erase' }; roll.setPointerCapture(e.pointerId); return; }
-  roll.setPointerCapture(e.pointerId);
-  if (hit != null) { sel = hit; const x = a[hit]; preview(x.n, x); const edge = h.row === hit + x.l - 1 && (x.l > 1 || (h.x - KW) / geo.cw - h.row > .6); drag = { mode: edge ? 'resize' : 'move', r0: hit, cur: hit, row0: h.row, i0: h.pIdx, moved: false }; if (edge) snap(); }
+  if (tool === 'erase' || e.button === 2) { if (hit != null) { snap(); a[hit] = null; sel = null; afterEdit(); } drag = { mode: 'erase' }; wrap.setPointerCapture(e.pointerId); return; }
+  wrap.setPointerCapture(e.pointerId);
+  if (hit != null) { sel = hit; const x = a[hit]; preview(x.n, x); const edge = h.row === hit + x.l - 1 && (x.l > 1 || h.fx - h.row > .6); drag = { mode: edge ? 'resize' : 'move', r0: hit, cur: hit, row0: h.row, i0: h.pIdx, moved: false }; if (edge) snap(); }
   else { snap(); a[h.row] = { n: h.n, l: Math.min(len, song.rows - h.row), v: 12 }; sel = h.row; preview(h.n); drag = { mode: 'resize', r0: h.row, created: true }; }
   drawRoll(); paintNoteEd();
 });
-roll.addEventListener('pointermove', e => {
+wrap.addEventListener('pointermove', e => {
   if (!drag) return; const h = hitAt(e), a = arr();
   if (drag.mode === 'erase') { const r = noteAt(h.row, h.n); if (r != null) { snap(); a[r] = null; afterEdit(); } return; }
   if (drag.mode === 'resize') { const x = a[drag.r0]; if (!x) return; const nl = Math.max(1, Math.min(song.rows - drag.r0, h.row - drag.r0 + 1)); if (nl !== x.l) { x.l = nl; len = nl; syncLen(); drawRoll(); paintNoteEd(); } return; }
@@ -170,12 +200,41 @@ roll.addEventListener('pointermove', e => {
   }
 });
 const endDrag = () => { if (drag) { drag = null; afterEdit(); } };
-roll.addEventListener('pointerup', endDrag); roll.addEventListener('pointercancel', endDrag);
-roll.addEventListener('dblclick', e => { const h = hitAt(e), r = noteAt(h.row, h.n); if (r != null) { snap(); arr()[r] = null; sel = null; afterEdit(); } });
+wrap.addEventListener('pointerup', endDrag); wrap.addEventListener('pointercancel', endDrag);
+wrap.addEventListener('dblclick', e => { const h = hitAt(e), r = noteAt(h.row, h.n); if (r != null) { snap(); arr()[r] = null; sel = null; afterEdit(); } });
+let scrollRaf = 0; wrap.addEventListener('scroll', () => { if (scrollRaf) return; scrollRaf = requestAnimationFrame(() => { scrollRaf = 0; drawRoll(); drawLanes(); }); }, { passive: true });
 function afterEdit() { save(); drawRoll(); drawLanes(); paintNoteEd(); paintChans(); }
-function scrollToNotes() { const P = pitches(), ns = arr().filter(Boolean).map(x => P.indexOf(x.n)).filter(i => i >= 0); const mid = ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : P.indexOf(ch === 2 ? 45 : 69); wrap.scrollTop = Math.max(0, mid * CH_H - wrap.clientHeight / 2); }
+function scrollToNotes() { layout(); const P = pitches(), ns = arr().filter(Boolean).map(x => P.indexOf(x.n)).filter(i => i >= 0); const mid = ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : P.indexOf(ch === 2 ? 45 : 69); wrap.scrollTop = Math.max(0, mid * chH() - wrap.clientHeight / 2); }
+/** Keep row r visible horizontally (page-style jump). */
+function revealRow(r) { if (zoom.x <= 1) return; const x = KW + r * geo.cw - wrap.scrollLeft; if (x < KW || x > wrap.clientWidth - geo.cw) wrap.scrollLeft = Math.max(0, KW + r * geo.cw - KW - (wrap.clientWidth - KW) * .1) ; }
+// zoom: anchor = point in viewport kept fixed (default center)
+function setZoom(nx, ny, ax, ay) {
+  nx = Math.max(1, Math.min(32, nx)); ny = Math.max(.5, Math.min(3, ny)); if (nx === zoom.x && ny === zoom.y) return;
+  const VW = wrap.clientWidth, VH = wrap.clientHeight; ax ??= KW + (VW - KW) / 2; ay ??= VH / 2;
+  const row = (Math.max(KW, ax) + wrap.scrollLeft - KW) / geo.cw, pIdx = (ay + wrap.scrollTop) / geo.h;
+  zoom = { x: nx, y: ny }; localStorage.setItem(LS_ZOOM, JSON.stringify(zoom));
+  const g = layout(); wrap.scrollLeft = Math.max(0, KW + row * g.cw - Math.max(KW, ax)); wrap.scrollTop = Math.max(0, pIdx * g.h - ay);
+  drawRoll(); drawLanes();
+}
+const stepZ = (L, v, d) => d > 0 ? (L.find(z => z > v + 1e-6) ?? L[L.length - 1]) : ([...L].reverse().find(z => z < v - 1e-6) ?? L[0]);
+function paintZoom() { const fx = v => (v % 1 ? v.toFixed(v < 1 ? 2 : 1) : v) + '×'; if ($('zxLbl')) { $('zxLbl').textContent = '↔' + fx(zoom.x); $('zyLbl').textContent = '↕' + fx(zoom.y); $('zxOut').disabled = zoom.x <= 1; $('zxIn').disabled = zoom.x >= 32; $('zyOut').disabled = zoom.y <= .5; $('zyIn').disabled = zoom.y >= 3; } }
+$('zxIn').onclick = () => setZoom(stepZ(ZX, zoom.x, 1), zoom.y); $('zxOut').onclick = () => setZoom(stepZ(ZX, zoom.x, -1), zoom.y);
+$('zyIn').onclick = () => setZoom(zoom.x, stepZ(ZY, zoom.y, 1)); $('zyOut').onclick = () => setZoom(zoom.x, stepZ(ZY, zoom.y, -1));
+$('zxLbl').onclick = () => setZoom(1, zoom.y); $('zyLbl').onclick = () => setZoom(zoom.x, 1);
+// Ctrl/Cmd+wheel (and trackpad pinch) = time zoom · Alt+wheel = pitch zoom · plain wheel scrolls; Shift+wheel scrolls sideways
+wrap.addEventListener('wheel', e => {
+  if (!(e.ctrlKey || e.metaKey || e.altKey)) return; e.preventDefault();
+  const b = wrap.getBoundingClientRect(), k = Math.exp(-Math.max(-60, Math.min(60, e.deltaY)) * .01);
+  if (e.altKey) setZoom(zoom.x, Math.round(zoom.y * k * 100) / 100, null, e.clientY - b.top); else setZoom(Math.round(zoom.x * k * 100) / 100, zoom.y, e.clientX - b.left, null);
+}, { passive: false });
+// two-finger pinch on touch (horizontal spread → time zoom, vertical spread → pitch zoom)
+{ const pts = new Map(); let p0 = null;
+  wrap.addEventListener('touchstart', e => { if (e.touches.length === 2) { const [a, b] = e.touches; p0 = { dx: Math.abs(a.clientX - b.clientX) || 1, dy: Math.abs(a.clientY - b.clientY) || 1, z: { ...zoom }, cx: (a.clientX + b.clientX) / 2, cy: (a.clientY + b.clientY) / 2 }; if (drag) { const cr = drag.created; drag = null; if (cr) undo(); } } }, { passive: true });
+  wrap.addEventListener('touchmove', e => { if (!p0 || e.touches.length !== 2) return; e.preventDefault(); const [a, b] = e.touches, r = wrap.getBoundingClientRect(), dx = Math.abs(a.clientX - b.clientX) || 1, dy = Math.abs(a.clientY - b.clientY) || 1;
+    const hx = dx > dy * .6, vy = dy > dx * .6; setZoom(hx ? p0.z.x * dx / p0.dx : zoom.x, vy ? p0.z.y * dy / p0.dy : zoom.y, p0.cx - r.left, p0.cy - r.top); }, { passive: false });
+  wrap.addEventListener('touchend', e => { if (e.touches.length < 2) p0 = null; }); }
 
-// lanes overview
+// lanes overview (whole pattern; box = visible part of the roll when zoomed)
 const lanes = $('lanes'), lctx = lanes.getContext('2d');
 function drawLanes() {
   const dpr = devicePixelRatio || 1, W = lanes.clientWidth, H = 72; if (lanes.width !== W * dpr) { lanes.width = W * dpr; lanes.height = H * dpr; }
@@ -183,12 +242,15 @@ function drawLanes() {
   pat().ch.forEach((a, k) => {
     c.fillStyle = k === ch ? '#1b2130' : '#0d1017'; c.fillRect(0, k * lh, W, lh - 1); c.fillStyle = COL[k]; c.font = '10px ui-monospace,monospace'; c.fillText(['P1', 'P2', 'TRI', 'NOI'][k] || k, 4, k * lh + 12);
     const ns = a.filter(Boolean).map(x => x.n), lo = Math.min(...ns, 999), hi = Math.max(...ns, -999), span = Math.max(1, hi - lo);
-    a.forEach((x, r) => { if (!x) return; const y = k * lh + 2 + (1 - (x.n - lo) / span) * (lh - 7); c.globalAlpha = chip.chMute[k] ? .25 : 1; c.fillRect(KW + r * cw, y, Math.max(2, x.l * cw - 1), 3); }); c.globalAlpha = 1;
+    a.forEach((x, r) => { if (!x) return; const y = k * lh + 2 + (1 - (x.n - lo) / span) * (lh - 7); c.globalAlpha = chip.chMute[k] ? .25 : 1; c.fillRect(KW + r * cw, y, Math.max(1, x.l * cw - (cw > 2 ? 1 : 0)), 3); }); c.globalAlpha = 1;
   });
-  for (let r = 0; r <= song.rows; r += 16) { c.fillStyle = '#4a5568'; c.fillRect(KW + r * cw, 0, 1, H); }
+  const bar = song.rpb * 4, step = cw * bar < 6 ? bar * 4 : bar; for (let r = 0; r <= song.rows; r += step) { c.fillStyle = '#4a5568'; c.fillRect(KW + r * cw, 0, 1, H); }
+  if (zoom.x > 1 && geo.cw) { const a = (wrap.scrollLeft) / geo.cw, b = (wrap.scrollLeft + wrap.clientWidth - KW) / geo.cw; c.strokeStyle = '#7ef0c8aa'; c.lineWidth = 1; c.strokeRect(KW + a * cw + .5, .5, Math.max(3, (Math.min(song.rows, b) - a) * cw - 1), H - 1); }
   const h = chip.playing ? chip.head() : null; if (h && h.p === pi) { c.fillStyle = '#7ef0c8'; c.fillRect(KW + h.r * cw, 0, 2, H); }
 }
-lanes.onclick = e => { const b = lanes.getBoundingClientRect(); const k = Math.floor((e.clientY - b.top) / (b.height / 4)); if (k >= 0 && k < 4) selectCh(k); };
+lanes.onclick = e => { const b = lanes.getBoundingClientRect(), x = e.clientX - b.left; const k = Math.floor((e.clientY - b.top) / (b.height / 4));
+  if (zoom.x > 1 && x > KW) { const r = (x - KW) / ((b.width - KW) / song.rows); requestAnimationFrame(() => { wrap.scrollLeft = Math.max(0, r * geo.cw - (wrap.clientWidth - KW) / 2); }); }
+  if (k >= 0 && k < 4 && k !== ch) selectCh(k); };
 
 // roll toolbar
 $('tools').onclick = e => { const t = e.target.dataset.tool; if (!t) return; tool = t; [...$('tools').children].forEach(b => b.classList.toggle('on', b.dataset.tool === t)); };
@@ -299,7 +361,7 @@ addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.code === 'Space') { e.preventDefault(); e.shiftKey ? (mode === 'pat' ? stop() : play(true)) : (mode === 'song' ? stop() : play(false)); return; }
   if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); noteAct('del'); return; }
-  if (e.key.startsWith('Arrow')) { e.preventDefault(); if (sel == null) { if (e.key === 'ArrowLeft') cursor = Math.max(0, cursor - 1); if (e.key === 'ArrowRight') cursor = Math.min(song.rows - 1, cursor + 1); drawRoll(); return; } noteAct({ ArrowUp: 'up', ArrowDown: 'dn', ArrowLeft: e.shiftKey ? 'sh' : 'lf', ArrowRight: e.shiftKey ? 'lg' : 'rt' }[e.key], e.shiftKey); return; }
+  if (e.key.startsWith('Arrow')) { e.preventDefault(); if (sel == null) { if (e.key === 'ArrowLeft') cursor = Math.max(0, cursor - 1); if (e.key === 'ArrowRight') cursor = Math.min(song.rows - 1, cursor + 1); revealRow(cursor); drawRoll(); return; } noteAct({ ArrowUp: 'up', ArrowDown: 'dn', ArrowLeft: e.shiftKey ? 'sh' : 'lf', ArrowRight: e.shiftKey ? 'lg' : 'rt' }[e.key], e.shiftKey); return; }
   if (e.key === '[') return noteAct('sh'); if (e.key === ']') return noteAct('lg');
   if (e.key === '-' || e.key === '=') { const o = $('oct'); o.value = Math.max(1, Math.min(7, +o.value + (e.key === '=' ? 1 : -1))); return; }
   if (e.repeat) return;
@@ -307,21 +369,21 @@ addEventListener('keydown', e => {
   if (semi < 0) return; e.preventDefault();
   const n = isNoise() ? Math.max(0, Math.min(15, 15 - semi)) : (+$('oct').value + 1) * 12 + semi;
   preview(n);
-  if ($('stepRec').checked) { snap(); arr()[cursor] = { n, l: Math.min(len, song.rows - cursor), v: 12 }; sel = cursor; cursor = (cursor + len) % song.rows; afterEdit(); }
+  if ($('stepRec').checked) { snap(); arr()[cursor] = { n, l: Math.min(len, song.rows - cursor), v: 12 }; sel = cursor; cursor = (cursor + len) % song.rows; revealRow(cursor); afterEdit(); }
 });
 
 // ---------- refresh / loop
 function refresh() {
-  $('bpm').value = song.bpm; $('rows').value = song.rows; $('swing').value = song.swing || 0; $('echo').value = song.echo || 0;
+  $('bpm').value = song.bpm; { const rs = $('rows'); if (![...rs.options].some(o => +o.value === song.rows)) rs.append(new Option(song.rows)); rs.value = song.rows; } $('swing').value = song.swing || 0; $('echo').value = song.echo || 0;
   $('chLabel').innerHTML = `<span style="color:${COL[ch]}">● ${song.channels[ch].name}</span>`; $('songTitle').textContent = song.title || ''; $('songTitle').title = song.title || '';
-  paintChans(); paintPats(); paintOrder(); paintInst(); paintNoteEd(); drawRoll(); drawLanes(); paintExpInfo();
+  paintChans(); paintPats(); paintOrder(); paintLen(); paintInst(); paintNoteEd(); drawRoll(); drawLanes(); paintExpInfo();
 }
 const scope = $('scope'), sctx = scope.getContext('2d'); let buf; let lastHead = '';
 function loop() {
   if (chip.analyser) { buf ||= new Uint8Array(chip.analyser.fftSize); chip.analyser.getByteTimeDomainData(buf); sctx.fillStyle = '#05070a'; sctx.fillRect(0, 0, 120, 28); sctx.strokeStyle = '#7ef0c8'; sctx.beginPath(); for (let i = 0; i < 120; i++) { const v = buf[i * 4] / 255; i ? sctx.lineTo(i, v * 28) : sctx.moveTo(i, v * 28); } sctx.stroke(); }
   if (chip.playing) {
     const h = chip.head(); const key = h ? `${h.o}:${h.r}` : '';
-    if (key !== lastHead) { lastHead = key; if (h && mode === 'song' && $('follow').checked && h.p !== pi && !drag) { pi = h.p; sel = null; ordSel = h.o; refresh(); } else { drawRoll(); drawLanes(); } if (h && h.r === 0) paintOrder(); }
+    if (key !== lastHead) { lastHead = key; if (h && mode === 'song' && $('follow').checked && h.p !== pi && !drag) { pi = h.p; sel = null; ordSel = h.o; refresh(); } else { if (h && h.p === pi && $('follow').checked && !drag) revealRow(h.r); drawRoll(); drawLanes(); } if (h && h.r === 0) paintOrder(); }
   } else if (mode) { mode = null; paintTransport(); }
   requestAnimationFrame(loop);
 }
