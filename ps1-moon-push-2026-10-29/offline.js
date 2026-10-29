@@ -92,9 +92,16 @@ export class OfflineRoom {
     p.vz += inp.z * sp * dt;
     if (inp.push && p.pushCd <= 0) {
       p.pushCd = 0.55;
-      const len = Math.hypot(inp.x, inp.z) || 1;
-      const fx = (inp.x / len) * 11;
-      const fz = (inp.z / len) * 11;
+      const len = Math.hypot(inp.x, inp.z);
+      let fx;
+      let fz;
+      if (len > 0.05) {
+        fx = (inp.x / len) * 11;
+        fz = (inp.z / len) * 11;
+      } else {
+        fx = Math.sin(p.yaw) * 11;
+        fz = Math.cos(p.yaw) * 11;
+      }
       p.vx += fx;
       p.vz += fz;
     }
