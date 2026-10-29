@@ -6,16 +6,20 @@ canvas{display:block;touch-action:none;image-rendering:pixelated}
 .px{font-family:"DotGothic16","Hiragino Kaku Gothic ProN",monospace;letter-spacing:.04em}
 a{color:#9cc8ff}
 .panel{background:#0b0d12e8;border:2px solid #6b5a3a;box-shadow:0 0 0 2px #000,inset 0 0 0 1px #2a2418;border-radius:4px}
-#topR{position:fixed;top:10px;right:10px;left:10px;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:6px;z-index:5;pointer-events:none}
+#topBar{position:fixed;top:10px;left:10px;right:10px;display:flex;align-items:center;justify-content:space-between;gap:10px;z-index:5;pointer-events:none}
+#topBar #hp{pointer-events:none;flex:1 1 auto;min-width:0;font-size:17px;letter-spacing:1px;line-height:1.2;text-shadow:0 2px 0 #000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#topR{position:static;flex:0 0 auto;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:6px;max-width:min(100%,520px);pointer-events:none}
 #topR>*{pointer-events:auto}
 #topR #menuBtn{font-size:13px;padding:4px 8px;white-space:nowrap}
-#hud{position:fixed;left:10px;top:10px;z-index:4;pointer-events:none;max-width:min(340px,calc(100vw - 24px));padding-right:8px}
-#hp{font-size:17px;letter-spacing:1px;line-height:1.25;text-shadow:0 2px 0 #000;max-width:100%;overflow:hidden}
-#obj{margin-top:6px;padding:6px 10px;font-size:13px;line-height:1.45;max-width:100%;word-break:break-word}
+#hud{position:fixed;left:10px;top:46px;z-index:4;pointer-events:none;max-width:min(420px,calc(100vw - 24px))}
+#obj{padding:6px 10px;font-size:13px;line-height:1.45;max-width:100%;word-break:break-word}
 #obj small{display:block;color:#c9a54a;font-size:11px}
 @media(max-width:520px){
-  #hud{top:48px;max-width:calc(100vw - 20px)}
-  #topR{left:10px;right:10px}
+  #topBar #hp{font-size:14px;letter-spacing:0}
+  #topR{max-width:62%}
+  #topR #menuBtn{font-size:12px;padding:3px 6px}
+  #vol{width:56px}
+  #hud{top:44px;max-width:calc(100vw - 20px)}
 }
 button{font:inherit;color:#ece4d2;background:#231d14;border:2px solid #6b5a3a;border-radius:4px;padding:4px 10px;cursor:pointer}
 button:hover,button.sel{background:#4a3a20;border-color:#d8b35a}
@@ -56,16 +60,18 @@ body.rn-shell #title.rn-hide{display:none!important}
 #touch{display:none;pointer-events:none}
 #joy,#joyK{pointer-events:none}
 body.touch #touch{display:block}
-#joy{position:fixed;left:24px;bottom:24px;width:120px;height:120px;border-radius:50%;background:#ffffff14;border:2px solid #ffffff30}
+#touchActions{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);display:flex;align-items:center;justify-content:center;gap:14px;pointer-events:none;z-index:3}
+#joy{position:relative;left:auto;bottom:auto;width:120px;height:120px;border-radius:50%;background:#ffffff14;border:2px solid #ffffff30;flex-shrink:0}
 #joyK{position:absolute;left:40px;top:40px;width:40px;height:40px;border-radius:50%;background:#ffffff50}
-#tbtn{position:fixed;right:18px;bottom:24px;display:grid;grid-template-columns:repeat(2,64px);gap:10px}
-#tbtn button{pointer-events:auto;height:64px;border-radius:50%;font-size:18px;background:#231d14cc}
+#touch .tact{pointer-events:auto;width:64px;height:64px;border-radius:50%;font-size:20px;font:inherit;color:#ece4d2;background:#231d14cc;border:2px solid #6b5a3a;cursor:pointer;flex-shrink:0}
+#touch>.tact.debug-only{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);width:52px;height:52px;font-size:15px}
 #pause .pause-box{width:min(400px,calc(100vw - 24px));text-align:center;padding:20px}
 #pause h3{margin:0 0 8px;color:#ffd27a;font-size:22px}
 #pause .sub{color:#c9b89a;margin-bottom:14px}
 #pause button{display:block;width:100%;margin:6px 0;font-size:16px;padding:8px}
 body.debug-on .debug-only{display:inline-block!important}
-body.debug-on #tbtn .debug-only{display:block!important}
+body.debug-on #touch>.tact.debug-only{display:block!important}
+body.debug-on #touchActions .debug-only{display:inline-block!important}
 .debug-only{display:none!important}
 #debugCorner{position:fixed;left:0;bottom:0;width:48px;height:48px;opacity:0;z-index:5;touch-action:none}
 #debugPanel .box{max-width:360px}
@@ -75,8 +81,8 @@ body.debug-on #tbtn .debug-only{display:block!important}
 body.rn-shell .rn-only-hint{display:block}
 #cross{position:fixed;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:#fff8;pointer-events:none;display:none}
 </style></head><body>
-<div id="topR"><button id="menuBtn" title="メニュー（Esc）">メニュー</button><button id="sndBtn" title="BGM/効果音 ON/OFF（M）">♪ ON</button><input id="vol" type="range" min="0" max="100" title="音量"><button id="modeBtn" class="debug-only" title="P キー（デバッグ）">PS1＋バウンス</button><button id="invBtn" title="I / Tab">持ち物</button></div>
-<div id="hud"><div id="hp"></div><div id="obj" class="panel"><small>目的</small><span id="objText"></span></div></div>
+<div id="topBar"><div id="hp"></div><div id="topR"><button id="menuBtn" title="メニュー（Esc）">メニュー</button><button id="sndBtn" title="BGM/効果音 ON/OFF（M）">♪ ON</button><input id="vol" type="range" min="0" max="100" title="音量"><button id="modeBtn" class="debug-only" title="P キー（デバッグ）">PS1＋バウンス</button><button id="invBtn" title="I / Tab">持ち物</button></div></div>
+<div id="hud"><div id="obj" class="panel"><small>目的</small><span id="objText"></span></div></div>
 <div id="prompt" class="panel"></div>
 <div id="toasts"></div>
 <div id="flaglog"></div>
@@ -110,7 +116,7 @@ body.rn-shell .rn-only-hint{display:block}
   <button id="pauseTitle">メニューに戻る</button>
   <small class="rn-only-hint">セーブは自動で保存されます。</small>
 </div></div>
-<div id="touch"><div id="joy"><div id="joyK"></div></div><div id="tbtn"><button data-k="KeyE">E</button><button data-k="KeyP" class="debug-only">描</button><button data-k="KeyF">F</button></div></div>
+<div id="touch"><div id="touchActions"><button type="button" class="tact" data-k="KeyE">E</button><div id="joy"><div id="joyK"></div></div><button type="button" class="tact" data-k="KeyF">F</button></div><button type="button" class="tact debug-only" data-k="KeyP">描</button></div>
 <div id="debugCorner" title=""></div>
 <div id="debugPanel" class="overlay"><div class="box panel pause-box">
   <h3 class="px">デバッグ</h3>

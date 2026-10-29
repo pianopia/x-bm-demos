@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <script>
+    (function () {
+      var p = location.pathname;
+      if (/\.html$/i.test(p)) p = p.replace(/[^/]+$/, '');
+      else if (!p.endsWith('/')) p = p + '/';
+      var b = document.createElement('base');
+      b.href = p;
+      document.head.appendChild(b);
+    })();
+  </script>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>PS1 FPS アリーナ</title>
+  <style>
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:system-ui,"Hiragino Sans","Noto Sans JP",sans-serif;touch-action:none}
+    canvas{display:block;width:100%;height:100%}
+    #title{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(#0a0c12ee,#050508f0);color:#e8e4dc;z-index:20;gap:16px}
+    #title h1{margin:0;font-size:clamp(22px,5vw,32px);letter-spacing:.08em}
+    #title p{margin:0;opacity:.75;font-size:14px;max-width:320px;text-align:center;line-height:1.6}
+    #btnStart{font-size:18px;padding:12px 28px;border-radius:999px;border:1px solid #6a8a7a;background:#2a4038;color:#dff5ea;cursor:pointer}
+    #hud{position:fixed;inset:0;pointer-events:none;z-index:5;display:none}
+    #stats{position:absolute;top:10px;left:12px;color:#e0e6ec;text-shadow:0 1px 2px #000;font-size:14px;line-height:1.5}
+    #cross{position:absolute;left:50%;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;opacity:.85}
+    #cross::before,#cross::after{content:"";position:absolute;background:#f0f4f8;box-shadow:0 0 2px #000}
+    #cross::before{left:8px;top:0;width:2px;height:18px}
+    #cross::after{top:8px;left:0;width:18px;height:2px}
+    #touchUi{position:fixed;inset:0;pointer-events:none;z-index:8;display:none}
+    #stickBase{position:absolute;width:112px;height:112px;border-radius:50%;border:2px solid #ffffff44;background:#00000055;display:none;pointer-events:none}
+    #stickKnob{position:absolute;left:50%;top:50%;width:48px;height:48px;margin:-24px 0 0 -24px;border-radius:50%;background:#ffffff33;border:1px solid #fff6}
+    #btnReload{position:absolute;right:18px;bottom:22px;pointer-events:auto;padding:10px 16px;border-radius:10px;border:1px solid #889;background:#1a222ccc;color:#eee;font-size:15px;font-weight:600}
+    #muteBtn{position:absolute;top:10px;right:12px;pointer-events:auto;border:none;background:#0006;color:#fff;font-size:20px;border-radius:8px;padding:4px 8px;cursor:pointer}
+    #debugPanel{position:fixed;left:10px;bottom:10px;display:none;z-index:30;background:#101820dd;padding:8px 10px;border-radius:8px;color:#cde;font-size:12px;pointer-events:auto}
+    #debugPanel button{margin:2px 4px 0 0;font-size:11px}
+  </style>
+</head>
+<body>
+  <div id="title">
+    <h1>PS1 FPS アリーナ</h1>
+    <p>左：移動スティック　右：ドラッグで視点・タップで射撃<br>リロードはボタンから</p>
+    <button type="button" id="btnStart">はじめから</button>
+  </div>
+  <button type="button" id="muteBtn" aria-label="ミュート">🔊</button>
+  <div id="hud">
+    <div id="stats">HP <span id="hp">100</span><br>弾薬 <span id="ammo">12 / 48</span></div>
+    <div id="cross"></div>
+  </div>
+  <div id="touchUi">
+    <div id="stickBase"><div id="stickKnob"></div></div>
+    <button type="button" id="btnReload">リロード</button>
+  </div>
+  <div id="debugPanel">
+    描画モード:
+    <button type="button" id="modePs1b">PS1+バウンス</button>
+    <button type="button" id="modePs1">PS1</button>
+    <button type="button" id="modeClean">クリーン</button>
+  </div>
+  <script type="module">
+    (function () {
+      var p = location.pathname;
+      if (/\.html$/i.test(p)) p = p.slice(0, p.lastIndexOf('/') + 1);
+      else if (!p.endsWith('/')) p = p + '/';
+      import(new URL('main.js', location.origin + p).href);
+    })();
+  </script>
+</body>
+</html>

@@ -22305,9 +22305,18 @@ document.addEventListener("pointerlockchange", () => {
   $2("cross").style.display = document.pointerLockElement === cv ? "block" : "none";
 });
 var touches = /* @__PURE__ */ new Map();
+var joyZone = (x, y) => {
+  const el = $2("joy");
+  if (!el) return false;
+  const r = el.getBoundingClientRect();
+  const pad = 28;
+  return x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad;
+};
 cv.addEventListener("touchstart", (e) => {
   document.body.classList.add("touch");
-  for (const t2 of e.changedTouches) touches.set(t2.identifier, { x: t2.clientX, y: t2.clientY, ox: t2.clientX, oy: t2.clientY, joy: t2.clientX < innerWidth * 0.4 });
+  for (const t2 of e.changedTouches) {
+    touches.set(t2.identifier, { x: t2.clientX, y: t2.clientY, ox: t2.clientX, oy: t2.clientY, joy: joyZone(t2.clientX, t2.clientY) });
+  }
   e.preventDefault();
 }, { passive: false });
 cv.addEventListener("touchmove", (e) => {
@@ -22339,7 +22348,7 @@ var tend = (e) => {
 };
 cv.addEventListener("touchend", tend);
 cv.addEventListener("touchcancel", tend);
-document.querySelectorAll("#tbtn button").forEach((b) => b.addEventListener("touchstart", (e) => {
+document.querySelectorAll("#touch .tact").forEach((b) => b.addEventListener("touchstart", (e) => {
   e.preventDefault();
   handleKey(b.dataset.k);
 }, { passive: false }));
