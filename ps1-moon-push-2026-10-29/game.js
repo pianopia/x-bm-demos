@@ -2,7 +2,7 @@
 import * as THREE from 'three';
 import { createPipeline } from '../ps1-tps-explore-rpg-2026-10-29/render.js';
 import { buildArena, buildLobbySpace, tickLobbyFloat, attachLobbyFloaters, MATCH_PLAYERS } from './world.js';
-import { loadStarfightAssets, spawnAstronaut, updateArenaAnim, playPushFlip } from './astro.js';
+import { loadStarfightAssets, spawnAstronaut, updateArenaAnim, playPushFlip, facingFromDirection } from './astro.js';
 import { MoonNet, normalizePlayers } from './net.js';
 import { OfflineRoom } from './offline.js';
 import { mountAudioUi } from './audio.js';
@@ -92,7 +92,7 @@ function finishTransition() {
   view = 'arena';
   clearArenaAvatars();
   camYaw = Math.PI;
-  localFace = Math.PI;
+  localFace = 0;
   lastMove.x = 0;
   lastMove.z = 1;
 }
@@ -113,7 +113,7 @@ let pushPulse = false;
 let camYaw = Math.PI;
 const camPitch = 0.34;
 const camDist = 10.5;
-let localFace = Math.PI;
+let localFace = 0;
 const lastMove = { x: 0, z: 1 };
 const _fwd = new V3();
 const _right = new V3();
@@ -135,7 +135,7 @@ function readMoveWorld() {
 function updateLocalFace(avatar, mv, dt) {
   const dl = Math.hypot(mv.x, mv.z);
   if (dl > 0.05) {
-    const target = Math.atan2(mv.x, mv.z);
+    const target = facingFromDirection(mv.x, mv.z);
     let d = target - localFace;
     d = Math.atan2(Math.sin(d), Math.cos(d));
     localFace += d * Math.min(1, dt * 12);
@@ -143,7 +143,7 @@ function updateLocalFace(avatar, mv, dt) {
     lastMove.z = mv.z / dl;
   } else {
     _fwd.set(-Math.sin(camYaw), 0, -Math.cos(camYaw));
-    const target = Math.atan2(_fwd.x, _fwd.z);
+    const target = facingFromDirection(_fwd.x, _fwd.z);
     let d = target - localFace;
     d = Math.atan2(Math.sin(d), Math.cos(d));
     localFace += d * Math.min(1, dt * 4);
@@ -487,7 +487,7 @@ function syncAvatars(players, dt, localMv = null, opts = {}) {
       updateLocalFace(a, localMv, dt);
     } else {
       let target = p.yaw;
-      if (Math.abs(vx) + Math.abs(vz) > 0.05) target = Math.atan2(vx, vz);
+      if (Math.abs(vx) + Math.abs(vz) > 0.05) target = facingFromDirection(vx, vz);
       if (target != null && !Number.isNaN(target)) {
         let d = target - a.g.rotation.y;
         d = Math.atan2(Math.sin(d), Math.cos(d));
