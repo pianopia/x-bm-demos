@@ -35,7 +35,7 @@ button:hover{background:#4a3a20;border-color:#d8b35a}
 #title .ctl kbd{display:inline-block;min-width:1.6em;padding:0 4px;border:1px solid #6b5a3a;border-radius:3px;background:#231d14;font:12px ui-monospace,monospace;text-align:center}
 #title small{color:#9a9284;display:block;margin-top:10px}
 #touch{display:none}
-body.touch #touch{display:block}
+body.touch.play #touch{display:block}
 #joy{position:fixed;left:22px;bottom:22px;width:118px;height:118px;border-radius:50%;background:#ffffff14;border:2px solid #ffffff30;pointer-events:auto;touch-action:none}
 #joyK{position:absolute;left:39px;top:39px;width:40px;height:40px;border-radius:50%;background:#ffffff55;pointer-events:none}
 #tbtn{position:fixed;right:16px;bottom:22px;display:flex;gap:10px}
