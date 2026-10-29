@@ -1,5 +1,13 @@
-/** Procedural 8-bit Web Audio for Moon Push (no asset files). */
-const KEY = 'moonpush-audio-v1';
+/** Moon Push: Muse DAW WAV loop BGM + procedural 8-bit SFX. */
+const KEY = 'moonpush-audio-v2';
+
+const BGM_URL = {
+  lobby: new URL('./audio/moon-push-lobby.wav', import.meta.url),
+  match: new URL('./audio/moon-push-match.wav', import.meta.url),
+};
+
+/** Post-gain targets (lobby WAV peaks ~0.37; match is hotter 8-bit). */
+const BGM_LEVEL = { lobby: 0.55, match: 0.5 };
 
 function pref() {
   try { return { muted: false, vol: 0.55, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; }
@@ -12,11 +20,14 @@ export class MoonAudio {
     this.ctx = null;
     this.muted = p.muted;
     this.vol = p.vol;
-    this._bgmGain = null;
     this._master = null;
+    this._bgmBus = null;
+    this._lobbyGain = null;
+    this._matchGain = null;
+    this._buf = { lobby: null, match: null };
+    this._src = { lobby: null, match: null };
+    this._loadPromise = null;
     this._mode = 'off';
-    this._step = 0;
-    this._nextNote = 0;
   }
 
   unlock() {
@@ -28,9 +39,18 @@ export class MoonAudio {
     this._master = this.ctx.createGain();
     this._master.gain.value = this.muted ? 0 : this.vol;
     this._master.connect(this.ctx.destination);
-    this._bgmGain = this.ctx.createGain();
-    this._bgmGain.gain.value = 0;
-    this._bgmGain.connect(this._master);
+
+    this._bgmBus = this.ctx.createGain();
+    this._bgmBus.gain.value = 1;
+    this._bgmBus.connect(this._master);
+
+    this._lobbyGain = this.ctx.createGain();
+    this._lobbyGain.gain.value = 0;
+    this._lobbyGain.connect(this._bgmBus);
+
+    this._matchGain = this.ctx.createGain();
+    this._matchGain.gain.value = 0;
+    this._matchGain.connect(this._bgmBus);
   }
 
   _persist() {
@@ -41,6 +61,8 @@ export class MoonAudio {
     this.muted = m;
     if (this._master) this._master.gain.value = m ? 0 : this.vol;
     this._persist();
+    if (!m && this._mode !== 'off') this.setBgm(this._mode);
+    else if (m) this._fadeLoopsOff();
   }
 
   setVolume(v) {
@@ -54,64 +76,86 @@ export class MoonAudio {
     return this.muted;
   }
 
+  _ensureBuffers() {
+    if (this._buf.lobby && this._buf.match) return Promise.resolve();
+    if (this._loadPromise) return this._loadPromise;
+    this.unlock();
+    const decodeOne = async (key) => {
+      const res = await fetch(BGM_URL[key]);
+      if (!res.ok) throw new Error(`BGM fetch ${key}: ${res.status}`);
+      const ab = await res.arrayBuffer();
+      return this.ctx.decodeAudioData(ab);
+    };
+    this._loadPromise = Promise.all([decodeOne('lobby'), decodeOne('match')]).then(([lobby, match]) => {
+      this._buf.lobby = lobby;
+      this._buf.match = match;
+    });
+    return this._loadPromise;
+  }
+
+  _startLoop(key) {
+    if (this._src[key] || !this._buf[key]) return;
+    const src = this.ctx.createBufferSource();
+    src.buffer = this._buf[key];
+    src.loop = true;
+    src.connect(key === 'lobby' ? this._lobbyGain : this._matchGain);
+    src.start(0);
+    this._src[key] = src;
+  }
+
+  _stopLoop(key) {
+    const src = this._src[key];
+    if (!src) return;
+    try { src.stop(); } catch { /* already stopped */ }
+    this._src[key] = null;
+  }
+
+  _fadeLoopsOff() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this._lobbyGain.gain.setTargetAtTime(0, t, 0.2);
+    this._matchGain.gain.setTargetAtTime(0, t, 0.2);
+    window.setTimeout(() => {
+      this._stopLoop('lobby');
+      this._stopLoop('match');
+    }, 450);
+  }
+
+  _applyLoopGains(mode) {
+    const t = this.ctx.currentTime;
+    const tau = 0.35;
+    if (mode === 'off') {
+      this._fadeLoopsOff();
+      return;
+    }
+    if (mode === 'lobby') {
+      this._startLoop('lobby');
+      this._lobbyGain.gain.setTargetAtTime(BGM_LEVEL.lobby, t, tau);
+      this._matchGain.gain.setTargetAtTime(0, t, tau);
+      window.setTimeout(() => this._stopLoop('match'), 500);
+    } else {
+      this._startLoop('match');
+      this._matchGain.gain.setTargetAtTime(BGM_LEVEL.match, t, tau);
+      this._lobbyGain.gain.setTargetAtTime(0, t, tau);
+      window.setTimeout(() => this._stopLoop('lobby'), 500);
+    }
+  }
+
   /** @param {'lobby'|'match'|'off'} mode */
   setBgm(mode) {
     this.unlock();
     this._mode = mode;
-    this._step = 0;
-    this._nextNote = 0;
     if (!this.ctx || this.muted) return;
-    const t = this.ctx.currentTime;
-    if (mode === 'off') {
-      this._bgmGain.gain.setTargetAtTime(0, t, 0.25);
-      return;
-    }
-    const target = mode === 'lobby' ? 0.14 : 0.22;
-    this._bgmGain.gain.setTargetAtTime(target, t, 0.35);
+    this._ensureBuffers()
+      .then(() => {
+        if (this._mode !== mode || this.muted) return;
+        this._applyLoopGains(mode);
+      })
+      .catch(err => console.warn('[MoonAudio] BGM load failed', err));
   }
 
-  tick(dt) {
-    if (!this.ctx || this.muted || this._mode === 'off') return;
-    this._nextNote -= dt;
-    if (this._nextNote > 0) return;
-
-    if (this._mode === 'lobby') this._tickLobbyBgm();
-    else this._tickMatchBgm();
-  }
-
-  _tickLobbyBgm() {
-    const beat = 60 / 78 / 2;
-    this._nextNote = beat;
-    const melody = [523, 659, 784, 880, 784, 659, 587, 523];
-    const f = melody[this._step % melody.length];
-    this._blip(f, 0.16, 'triangle', 0.055);
-    if (this._step % 2 === 0) this._blip(f * 0.5, 0.22, 'sine', 0.028);
-    if (this._step % 4 === 0) this._blip(196, 0.28, 'triangle', 0.04);
-    this._step++;
-  }
-
-  _tickMatchBgm() {
-    const beat = 60 / 128 / 2;
-    this._nextNote = beat;
-    const scale = [131, 165, 196, 220, 262, 220, 196, 165];
-    const f = scale[this._step++ % scale.length];
-    this._blip(f, 0.05, 'square', 0.1);
-  }
-
-  _blip(freq, dur, type = 'square', gain = 0.12) {
-    const t0 = this.ctx.currentTime;
-    const o = this.ctx.createOscillator();
-    const g = this.ctx.createGain();
-    o.type = type;
-    o.frequency.value = freq;
-    g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(Math.max(0.0001, gain), t0 + 0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-    o.connect(g);
-    g.connect(this._bgmGain);
-    o.start(t0);
-    o.stop(t0 + dur + 0.03);
-  }
+  /** Kept for game loop; BGM is buffer-driven (no per-frame synth). */
+  tick(_dt) {}
 
   sfx(name) {
     this.unlock();
