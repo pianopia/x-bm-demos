@@ -38,8 +38,8 @@ loadStarfightAssets().then(assets => {
   buildArena(arenaScene, assets.tex, assets.rocks);
   setStatus('宇宙ロビー — キューに入るとマッチング');
 }).catch(err => {
-  console.error(err);
-  setStatus('アセット読込失敗', 'off');
+  console.error('[MoonPush] loadStarfightAssets failed', err);
+  setStatus(`読込失敗: ${err?.message || err}`, 'off');
 });
 
 let view = 'lobby'; // lobby | arena
