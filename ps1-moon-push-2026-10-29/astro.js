@@ -61,6 +61,11 @@ function slotColor(name) {
   return SLOT_COLOR.grey;
 }
 
+/** Y rotation on rig root: GLB bind faces +Z; align with world direction (x, z). */
+export function facingFromDirection(x, z) {
+  return Math.atan2(x, z);
+}
+
 function astroMat(name) {
   return new THREE.MeshLambertMaterial({
     color: slotColor(name),
@@ -120,7 +125,6 @@ export async function loadStarfightAssets() {
   ]);
   const root = astro.scene;
   applySkinnedMaterials(root);
-  root.rotation.y = Math.PI;
   root.scale.setScalar(1);
   poseSkeleton(root);
   const box = new THREE.Box3().setFromObject(root);
