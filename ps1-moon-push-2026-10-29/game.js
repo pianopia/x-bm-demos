@@ -4,9 +4,11 @@ import { createPipeline } from '../ps1-tps-explore-rpg-2026-10-29/render.js';
 import { buildArena, buildLobbySpace, tickLobbyFloat, makeAstronaut, MATCH_PLAYERS } from './world.js';
 import { MoonNet, normalizePlayers } from './net.js';
 import { OfflineRoom } from './offline.js';
+import { mountAudioUi } from './audio.js';
 
 const $ = id => document.getElementById(id);
 const V3 = THREE.Vector3;
+const aud = mountAudioUi($('sndBtn'));
 
 const R = new THREE.WebGLRenderer({ antialias: false });
 R.setPixelRatio(1);
@@ -86,19 +88,46 @@ function setPlayControls(on) {
 const keys = new Set();
 const joy = { x: 0, y: 0 };
 let pushPulse = false;
-const readMove = () => {
-  let x = joy.x, z = joy.y;
-  if (keys.has('KeyA') || keys.has('ArrowLeft')) x -= 1;
-  if (keys.has('KeyD') || keys.has('ArrowRight')) x += 1;
-  if (keys.has('KeyW') || keys.has('ArrowUp')) z -= 1;
-  if (keys.has('KeyS') || keys.has('ArrowDown')) z += 1;
-  const l = Math.hypot(x, z);
-  if (l > 1) { x /= l; z /= l; }
-  return { x, z };
-};
+const camFwd = new V3();
+const camRight = new V3();
+const worldUp = new V3(0, 1, 0);
+
+/** Screen/stick input → world XZ using current camera forward on the arena plane. */
+function readMoveWorld() {
+  let forward = 0;
+  let right = 0;
+  if (keys.has('KeyW') || keys.has('ArrowUp')) forward += 1;
+  if (keys.has('KeyS') || keys.has('ArrowDown')) forward -= 1;
+  if (keys.has('KeyD') || keys.has('ArrowRight')) right += 1;
+  if (keys.has('KeyA') || keys.has('ArrowLeft')) right -= 1;
+  forward -= joy.y;
+  right += joy.x;
+  const il = Math.hypot(right, forward);
+  if (il < 0.08) return { x: 0, z: 0 };
+  if (il > 1) { right /= il; forward /= il; }
+
+  cam.getWorldDirection(camFwd);
+  camFwd.y = 0;
+  if (camFwd.lengthSq() < 1e-8) camFwd.set(0, 0, -1);
+  else camFwd.normalize();
+  camRight.crossVectors(camFwd, worldUp).normalize();
+
+  let wx = camRight.x * right + camFwd.x * forward;
+  let wz = camRight.z * right + camFwd.z * forward;
+  const wl = Math.hypot(wx, wz);
+  if (wl > 1) { wx /= wl; wz /= wl; }
+  return { x: wx, z: wz };
+}
 
 addEventListener('keydown', e => {
-  if (e.code === 'Space' && phase === 'play') { pushPulse = true; e.preventDefault(); }
+  if (e.code === 'Space' && phase === 'play') { pushPulse = true; aud.sfx('push'); e.preventDefault(); }
+  if (e.code === 'KeyM') {
+    aud.unlock();
+    aud.toggleMute();
+    if (!aud.muted) aud.sfx('select');
+    paintMuteBtn();
+    e.preventDefault();
+  }
   keys.add(e.code);
 });
 addEventListener('keyup', e => keys.delete(e.code));
@@ -125,7 +154,9 @@ joyEl.addEventListener('pointerup', e => {
   joyId = null; joy.x = joy.y = 0;
   joyK.style.transform = '';
 });
-$('pushBtn').addEventListener('pointerdown', () => { if (phase === 'play') pushPulse = true; });
+$('pushBtn').addEventListener('pointerdown', () => {
+  if (phase === 'play') { pushPulse = true; aud.sfx('push'); }
+});
 
 if ('ontouchstart' in window) document.body.classList.add('touch');
 
@@ -141,6 +172,20 @@ let lastState = null;
 let inputAcc = 0;
 let bannerT = 0;
 let cdShown = -1;
+let lastDeathCount = 0;
+let lastCdBeep = -1;
+
+function syncBgm() {
+  if (mode === 'title') aud.setBgm('off');
+  else if (phase === 'play') aud.setBgm('match');
+  else if (phase === 'result') aud.setBgm('off');
+  else aud.setBgm('lobby');
+}
+
+function paintMuteBtn() {
+  $('sndBtn').textContent = aud.muted ? '♪ OFF' : '♪ ON';
+  $('sndBtn').classList.toggle('off', aud.muted);
+}
 
 const defaultName = () => localStorage.getItem('moonpush-name') || `Astro-${(Math.random() * 8999 + 1000 | 0)}`;
 $('nameIn').value = defaultName();
@@ -160,12 +205,24 @@ function updateHud() {
   $('timer').textContent = fmtTime(timeLeft);
   $('alive').textContent = `生存 ${alive || '—'}`;
   $('deaths').textContent = `落下 ${myDeaths}`;
+  if (myDeaths > lastDeathCount) {
+    aud.sfx('fall');
+    lastDeathCount = myDeaths;
+  }
 }
 
 function showBanner(t) {
   $('banner').textContent = t;
   $('banner').classList.add('show');
   bannerT = 1.2;
+  const s = String(t);
+  if (/^\d+$/.test(s)) {
+    const n = +s;
+    if (n !== lastCdBeep) { lastCdBeep = n; aud.sfx('countdown'); }
+  } else if (s === 'START!') {
+    aud.sfx('start');
+    lastCdBeep = -1;
+  }
 }
 
 function onMatchApproach() {
@@ -256,9 +313,12 @@ function handleServerMsg(msg) {
     default:
       break;
   }
+  syncBgm();
 }
 
 function showResult(rows) {
+  aud.sfx('result');
+  aud.setBgm('off');
   const list = $('scoreList');
   list.innerHTML = '';
   const arr = (rows || []).map(r => ({
@@ -318,7 +378,11 @@ function beginPlay() {
   const name = $('nameIn').value.trim() || defaultName();
   localStorage.setItem('moonpush-name', name);
   playerName = name;
+  aud.unlock();
+  aud.sfx('select');
+  lastDeathCount = 0;
   startOnline(name);
+  syncBgm();
 }
 
 $('playBtn').onclick = beginPlay;
@@ -395,6 +459,9 @@ R.setAnimationLoop(() => {
 
   tickLobbyFloat(lobby.floaters, t);
 
+  if (view === 'lobby') updateLobbyCamera(t, dt);
+  else updateArenaCamera(dt);
+
   if ((mode === 'offline' || mode === 'botfill') && offline) {
     if (offline.phase === 'countdown' && offline.countdown !== cdShown && offline.countdown > 0) {
       cdShown = offline.countdown;
@@ -408,9 +475,10 @@ R.setAnimationLoop(() => {
         onMatchPlaying();
         showBanner('START!');
       }
-      const mv = readMove();
+      const mv = readMoveWorld();
       offline.input.x = mv.x;
       offline.input.z = mv.z;
+      if (pushPulse) aud.sfx('push');
       offline.input.push = pushPulse;
       pushPulse = false;
     }
@@ -432,7 +500,8 @@ R.setAnimationLoop(() => {
       inputAcc += dt;
       if (inputAcc >= 0.05) {
         inputAcc = 0;
-        const mv = readMove();
+        const mv = readMoveWorld();
+        if (pushPulse) aud.sfx('push');
         net?.sendInput(mv.x, mv.z, pushPulse);
         pushPulse = false;
       }
@@ -441,9 +510,7 @@ R.setAnimationLoop(() => {
     updateHud();
   }
 
-  if (view === 'lobby') updateLobbyCamera(t, dt);
-  else updateArenaCamera(dt);
-
+  aud.tick(dt);
   pipe.render(currentScene(), cam, 'ps1b', fade);
 });
 
