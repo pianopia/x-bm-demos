@@ -1,7 +1,8 @@
 // PS1 Moon Push — float in space (title + matchmaking) → moon arena on countdown
 import * as THREE from 'three';
 import { createPipeline } from '../ps1-tps-explore-rpg-2026-10-29/render.js';
-import { buildArena, buildLobbySpace, tickLobbyFloat, makeAstronaut, MATCH_PLAYERS } from './world.js';
+import { buildArena, buildLobbySpace, tickLobbyFloat, attachLobbyFloaters, MATCH_PLAYERS } from './world.js';
+import { loadStarfightAssets, spawnAstronaut, updateArenaAnim, playPushFlip } from './astro.js';
 import { MoonNet, normalizePlayers } from './net.js';
 import { OfflineRoom } from './offline.js';
 import { mountAudioUi } from './audio.js';
@@ -25,8 +26,21 @@ arenaScene.fog = new THREE.FogExp2(0x101218, 0.011);
 
 const cam = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.05, 200);
 const pipe = createPipeline(R);
-const lobby = buildLobbySpace(lobbyScene);
-buildArena(arenaScene);
+let lobby = null;
+let astroTemplate = null;
+let astroClips = null;
+
+loadStarfightAssets().then(assets => {
+  astroTemplate = assets.template;
+  astroClips = assets.clips;
+  lobby = buildLobbySpace(lobbyScene, assets.tex);
+  attachLobbyFloaters(lobby.floaters, lobby.group, () => spawnAstronaut(astroTemplate, astroClips));
+  buildArena(arenaScene, assets.tex, assets.rocks);
+  setStatus('宇宙ロビー — キューに入るとマッチング');
+}).catch(err => {
+  console.error(err);
+  setStatus('アセット読込失敗', 'off');
+});
 
 let view = 'lobby'; // lobby | arena
 let trans = null; // { phase: 'out'|'in', t: number }
@@ -47,10 +61,12 @@ addEventListener('resize', () => {
 
 const avatars = new Map();
 function ensureAvatar(id, colorIdx) {
+  if (!astroTemplate || !astroClips) return null;
   if (!avatars.has(id)) {
-    const g = makeAstronaut(colorIdx);
-    arenaScene.add(g);
-    avatars.set(id, { g, smooth: new V3(), vel: new V3(), snap: new V3() });
+    const rig = spawnAstronaut(astroTemplate, astroClips);
+    rig.play('idle', 0);
+    arenaScene.add(rig.root);
+    avatars.set(id, { g: rig.root, rig, smooth: new V3(), vel: new V3(), snap: new V3() });
   }
   return avatars.get(id);
 }
@@ -403,6 +419,7 @@ function beginPlay() {
   aud.sfx('select');
   lastDeathCount = 0;
   $('title').classList.add('hide');
+  document.body.classList.remove('title');
   startOnline(name);
   syncBgm();
 }
@@ -411,8 +428,8 @@ $('playBtn').onclick = beginPlay;
 $('retryBtn').onclick = () => { $('result').classList.remove('show'); location.reload(); };
 
 const lookAt = new V3();
-const lobbyCamBase = new V3(0, 2.2, 11);
-const lobbyLook = new V3(0, 1.2, -6);
+const lobbyCamBase = new V3(0, 1.6, 13);
+const lobbyLook = new V3(0, 0.8, -4);
 const _back = new V3();
 
 function updateLobbyCamera(t, dt) {
@@ -444,6 +461,7 @@ function syncAvatars(players, dt, localMv = null, opts = {}) {
   for (const id of avatars.keys()) if (!ids.has(id)) removeAvatar(id);
   players.forEach((p, i) => {
     const a = ensureAvatar(p.id, i);
+    if (!a) return;
     const vx = p.vx ?? 0;
     const vz = p.vz ?? 0;
     a.vel.set(vx, 0, vz);
@@ -477,6 +495,7 @@ function syncAvatars(players, dt, localMv = null, opts = {}) {
       }
     }
     a.g.visible = p.alive !== false;
+    updateArenaAnim(a.rig, speed, dt);
   });
 }
 
@@ -509,7 +528,7 @@ R.setAnimationLoop(() => {
     if (bannerT <= 0) $('banner').classList.remove('show');
   }
 
-  tickLobbyFloat(lobby.floaters, t);
+  tickLobbyFloat(lobby?.floaters ?? [], t, dt);
 
   if (view === 'lobby') updateLobbyCamera(t, dt);
   else updateArenaCamera(dt);
@@ -536,6 +555,8 @@ R.setAnimationLoop(() => {
       }
       if (pushPulse) {
         aud.sfx(offline.lastPushHit ? 'pushHit' : 'push');
+        const me = avatars.get('local');
+        if (me?.rig) playPushFlip(me.rig);
       }
       offline.input.push = pushPulse;
       pushPulse = false;
@@ -562,7 +583,11 @@ R.setAnimationLoop(() => {
       if (inputAcc >= 0.05) {
         inputAcc = 0;
         const mv = readMoveWorld();
-        if (pushPulse) aud.sfx('push');
+        if (pushPulse) {
+          aud.sfx('push');
+          const me = avatars.get(myId);
+          if (me?.rig) playPushFlip(me.rig);
+        }
         net?.sendInput(mv.x, mv.z, pushPulse);
         pushPulse = false;
       }
