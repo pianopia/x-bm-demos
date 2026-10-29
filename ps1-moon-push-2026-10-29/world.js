@@ -141,6 +141,7 @@ export function attachLobbyFloaters(floaters, group, spawnFn) {
     f.g.position.copy(f.base);
     group.add(f.g);
     rig.play('float', 0);
+    rig.mixer.update(0);
   }
 }
 

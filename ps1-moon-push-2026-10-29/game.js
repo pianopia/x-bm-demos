@@ -30,7 +30,7 @@ let lobby = null;
 let astroTemplate = null;
 let astroClips = null;
 
-loadStarfightAssets().then(assets => {
+loadStarfightAssets(R, cam).then(assets => {
   astroTemplate = assets.template;
   astroClips = assets.clips;
   lobby = buildLobbySpace(lobbyScene, assets.tex);

@@ -30,8 +30,15 @@ const VS = `#include <common>
 uniform float uPS1,uAff,uGour,uSnap;uniform vec2 uRes;uniform vec2 uRep;${LIGHT}
 varying vec2 vUv;varying vec2 vUvW;varying float vW;varying vec3 vP;varying vec3 vN;varying vec3 vG;
 void main(){
+  #include <skinbase_vertex>
+  #include <begin_vertex>
   #include <skinning_vertex>
-  vec4 wp=modelMatrix*vec4(transformed,1.);vP=wp.xyz;vN=normalize(mat3(modelMatrix)*normal);vUv=uv*uRep;
+  #include <beginnormal_vertex>
+  #include <skinnormal_vertex>
+  vec4 wp=modelMatrix*vec4(transformed,1.0);
+  vP=wp.xyz;
+  vN=normalize(normalMatrix*normal);
+  vUv=uv*uRep;
   vec4 cp=projectionMatrix*viewMatrix*wp;
   if(uPS1>.5&&cp.w>0.){vec2 g=vec2(uSnap*uRes.x/uRes.y,uSnap)*.5;cp.xy=floor(cp.xy/cp.w*g+.5)/g*cp.w;}
   vUvW=vUv*cp.w;vW=cp.w;vG=uGour>.5&&uPS1>.5?lightAt(vP,vN):vec3(0);gl_Position=cp;
@@ -99,6 +106,55 @@ let _template = null;
 let _clips = null;
 let _rocksTemplate = null;
 let _tex = null;
+let _useLambert = new URLSearchParams(globalThis.location?.search || '').has('astroLambert');
+
+const FALLBACK = { grey: 0x22241b, white: 0xf4f4f0, helm: 0xcc7417 };
+
+function slotColor(name) {
+  const n = (name || '').toLowerCase();
+  if (n.includes('helm')) return FALLBACK.helm;
+  if (n.includes('white')) return FALLBACK.white;
+  return FALLBACK.grey;
+}
+
+function lambertMat(name) {
+  return new THREE.MeshLambertMaterial({ color: slotColor(name), flatShading: true });
+}
+
+function applySkinnedMaterials(root) {
+  root.traverse(o => {
+    if (!o.isSkinnedMesh) return;
+    o.frustumCulled = false;
+    o.castShadow = o.receiveShadow = false;
+    const slots = o.material;
+    const pick = m => (_useLambert ? lambertMat(m?.name) : matForSlot(m?.name || ''));
+    if (Array.isArray(slots)) o.material = slots.map(pick);
+    else o.material = pick(slots);
+  });
+}
+
+function poseSkeleton(root) {
+  root.traverse(o => {
+    if (o.isSkinnedMesh && o.skeleton) {
+      o.skeleton.update();
+      o.computeBoundingSphere();
+    }
+  });
+  root.updateMatrixWorld(true);
+}
+
+function validatePs1SkinShader(renderer, camera, root) {
+  if (_useLambert) return;
+  try {
+    const probe = new THREE.Scene();
+    probe.add(SkeletonUtils.clone(root));
+    renderer.compile(probe, camera);
+  } catch (err) {
+    console.warn('[astro] PS1 skin shader compile failed — Lambert fallback', err);
+    _useLambert = true;
+    applySkinnedMaterials(root);
+  }
+}
 
 function bakeCanvasTex(src) {
   const c = document.createElement('canvas');
@@ -114,7 +170,7 @@ function bakeCanvasTex(src) {
   return t;
 }
 
-export async function loadStarfightAssets() {
+export async function loadStarfightAssets(renderer = null, camera = null) {
   if (_template) return { template: _template, clips: _clips, rocks: _rocksTemplate, tex: _tex };
   const raw = await Promise.all([
     loadImgTex('./assets/lunar/Ground_00_D_512.png', [4, 4]),
@@ -134,22 +190,20 @@ export async function loadStarfightAssets() {
     loader.loadAsync(url('./assets/rocks.glb')),
   ]);
   const root = astro.scene;
-  root.traverse(o => {
-    if (o.isSkinnedMesh) {
-      o.frustumCulled = false;
-      const slots = o.material;
-      const pick = m => matForSlot(m?.name || m?.userData?.name || '');
-      if (Array.isArray(slots)) o.material = slots.map(pick);
-      else o.material = pick(slots);
-    }
-  });
+  applySkinnedMaterials(root);
   root.rotation.y = Math.PI;
   root.scale.setScalar(1);
-  root.updateMatrixWorld(true);
+  poseSkeleton(root);
   const box = new THREE.Box3().setFromObject(root);
   const height = box.getSize(new THREE.Vector3()).y;
-  if (!height || !Number.isFinite(height)) throw new Error('astronaut.glb: invalid bounds');
-  root.scale.setScalar(1.65 / height);
+  if (!height || !Number.isFinite(height)) {
+    console.warn('[astro] bounds empty; using default scale 0.0165');
+    root.scale.setScalar(0.0165);
+  } else {
+    root.scale.setScalar(1.65 / height);
+  }
+  poseSkeleton(root);
+  if (renderer && camera) validatePs1SkinShader(renderer, camera, root);
 
   const src = astro.animations[0];
   if (!src) throw new Error('astronaut.glb: no animation');
@@ -186,6 +240,7 @@ export function spawnAstronaut(template, clips) {
     act.reset().fadeIn(fade).play();
     if (prev && fade > 0) act.crossFadeFrom(prev, fade, false);
     current = name;
+    mixer.update(0);
   };
   return {
     root,
