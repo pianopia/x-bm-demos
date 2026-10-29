@@ -7,7 +7,8 @@ const DEBUG = params.get('debug') === '1';
 const STICK_R = 56;
 const FIRE_DRAG_MAX = 14;
 const FIRE_TAP_MS = 220;
-const PICKUP_R = 1.05;
+const PICKUP_R = 1.55; // horizontal (xz) radius — auto-collect on walk-over
+const PICKUP_PROMPT_R = 2.6;
 
 /** @type {'title'|'play'} */
 let phase = 'title';
@@ -41,19 +42,16 @@ const player = {
 
 const ENEMY_TYPES = {
   tank: {
-    name: '重装甲', hp: 6, touchDps: 6, color: T.iron,
+    name: '巨体ゾンビ', hp: 6, touchDps: 6, model: 'zombieBig',
     speed: 0.72, stop: 1.55, melee: 2.05,
-    geo: () => new THREE.BoxGeometry(1.15, 1.4, 1.0, 2, 2, 2),
   },
   runner: {
-    name: 'ランナー', hp: 2, touchDps: 3.3, color: T.target,
-    speed: 2.05, stop: 1.35, melee: 1.85,
-    geo: () => new THREE.BoxGeometry(0.7, 1.35, 0.5, 2, 2, 1),
+    name: '走るゾンビ', hp: 2, touchDps: 3.3, model: 'zombie',
+    speed: 1.7, stop: 1.35, melee: 1.85,
   },
   sniper: {
-    name: '狙撃兵', hp: 3, touchDps: 1, color: T.scout,
+    name: '骸骨弓兵', hp: 3, touchDps: 1, model: 'skeleton',
     speed: 0.88, stop: 5.5, melee: 2.4, ideal: 7.5,
-    geo: () => new THREE.BoxGeometry(0.55, 1.85, 0.45, 2, 3, 1),
     ranged: true, range: 12, shotRate: 4.35, shotDmg: 1,
   },
 };
@@ -150,10 +148,14 @@ function enableFallbackRenderer() {
 }
 if (fallbackMode) enableFallbackRenderer();
 
-function setMeshEmissive(mesh, r, g, b) {
-  if (mesh?.material?.uniforms?.uEmi) mesh.material.uniforms.uEmi.value.setRGB(r, g, b);
-  else if (mesh?.material?.emissive) mesh.material.emissive.setRGB(r, g, b);
+function setMeshEmissive(obj, r, g, b) {
+  obj?.traverse?.((mesh) => {
+    if (!mesh.isMesh || mesh.userData.keepEmi) return;
+    if (mesh.material?.uniforms?.uEmi) mesh.material.uniforms.uEmi.value.setRGB(r, g, b);
+    else if (mesh.material?.emissive) mesh.material.emissive.setRGB(r, g, b);
+  });
 }
+function toLambertDeep(obj) { obj.traverse((o) => meshToLambert(o)); }
 
 // --- Toasts
 function toast(msg) {
@@ -186,7 +188,8 @@ function spawnPickupSpot(spot) {
     ? new THREE.BoxGeometry(0.45, 0.28, 0.35, 1, 1, 1)
     : new THREE.BoxGeometry(0.35, 0.35, 0.35, 1, 1, 1);
   const mesh = new THREE.Mesh(geo, M(tex, [1, 1], 0x111111));
-  mesh.position.set(spot.x, spot.kind === 'ammo' ? 0.18 : 0.22, spot.z);
+  spot.baseY = spot.kind === 'ammo' ? 0.18 : 0.22;
+  mesh.position.set(spot.x, spot.baseY, spot.z);
   mesh.rotation.y = spot.x * 0.2;
   S.add(mesh);
   if (fallbackMode) meshToLambert(mesh);
@@ -212,7 +215,53 @@ function initPickups() {
   }
 }
 
+// --- Collect FX (particles + screen flash)
+const fxParts = [];
+const FX_GEO = new THREE.BoxGeometry(0.07, 0.07, 0.07);
+const FX_COL = { ammo: [0xffd060, '#ffd06066'], herb: [0x60ff80, '#60ff8066'], medkit: [0xff6060, '#ff707066'] };
+const fxMats = {};
+function fxMat(kind) {
+  if (!fxMats[kind]) fxMats[kind] = new THREE.MeshBasicMaterial({ color: FX_COL[kind][0] });
+  return fxMats[kind];
+}
+function collectFx(kind, pos) {
+  for (let i = 0; i < 18; i++) {
+    const m = new THREE.Mesh(FX_GEO, fxMat(kind));
+    m.position.copy(pos);
+    const a = Math.random() * Math.PI * 2;
+    const sp = 1.2 + Math.random() * 1.8;
+    m.userData.v = new THREE.Vector3(Math.cos(a) * sp, 2.5 + Math.random() * 2.5, Math.sin(a) * sp);
+    m.userData.life = 0.55 + Math.random() * 0.3;
+    S.add(m);
+    fxParts.push(m);
+  }
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.04, 4, 12), fxMat(kind));
+  ring.position.copy(pos);
+  ring.rotation.x = Math.PI / 2;
+  ring.userData.v = new THREE.Vector3(0, 1.6, 0);
+  ring.userData.life = 0.6;
+  ring.userData.ring = true;
+  S.add(ring);
+  fxParts.push(ring);
+  const fl = $('pickFlash');
+  fl.style.transition = 'none';
+  fl.style.background = `radial-gradient(circle, transparent 35%, ${FX_COL[kind][1]} 100%)`;
+  fl.style.opacity = '1';
+  requestAnimationFrame(() => requestAnimationFrame(() => { fl.style.transition = 'opacity .45s ease-out'; fl.style.opacity = '0'; }));
+}
+function updateFx(dt) {
+  for (let i = fxParts.length - 1; i >= 0; i--) {
+    const m = fxParts[i];
+    m.userData.life -= dt;
+    if (m.userData.life <= 0) { S.remove(m); fxParts.splice(i, 1); continue; }
+    m.position.addScaledVector(m.userData.v, dt);
+    if (m.userData.ring) m.scale.multiplyScalar(1 + dt * 3.5);
+    else { m.userData.v.y -= 9 * dt; m.rotation.x += dt * 8; m.rotation.y += dt * 6; }
+  }
+}
+
 function collectPickup(p) {
+  collectFx(p.kind, p.mesh.position.clone().setY(0.4));
   if (p.kind === 'ammo') {
     player.reserve += p.amount;
     toast(`📦 弾薬 +${p.amount}`);
@@ -233,16 +282,67 @@ function collectPickup(p) {
   p.timer = p.respawn;
 }
 
-// --- Enemies
+// --- Enemies (low-poly zombie / skeleton figures; root Group at feet, y=0)
+function part(root, w, h, d, tex, x, y, z, rx = 0, ry = 0, rz = 0) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d, 1, 1, 1), M(tex, [1, 1], 0));
+  m.position.set(x, y, z);
+  m.rotation.set(rx, ry, rz);
+  root.add(m);
+  return m;
+}
+function eyes(root, y, z, sep, col) {
+  for (const sx of [-1, 1]) {
+    const e = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.02), M(T.black, [1, 1], col));
+    e.position.set(sx * sep, y, z);
+    e.userData.keepEmi = true;
+    root.add(e);
+  }
+}
+function buildEnemyModel(kind) {
+  const g = new THREE.Group();
+  const limbs = {};
+  if (kind === 'skeleton') {
+    part(g, 0.26, 0.28, 0.26, T.skull, 0, 1.68, 0);
+    eyes(g, 1.7, 0.135, 0.06, 0x6688ff);
+    part(g, 0.08, 0.14, 0.08, T.bone, 0, 1.5, 0);
+    part(g, 0.42, 0.42, 0.18, T.ribs, 0, 1.22, 0);
+    part(g, 0.08, 0.22, 0.08, T.bone, 0, 0.92, 0);
+    part(g, 0.34, 0.1, 0.16, T.bone, 0, 0.8, 0);
+    limbs.la = part(g, 0.07, 0.62, 0.07, T.bone, -0.27, 1.12, 0.08, -0.5, 0, 0.08);
+    limbs.ra = part(g, 0.07, 0.62, 0.07, T.bone, 0.27, 1.12, 0.12, -1.1, 0, -0.08);
+    part(g, 0.05, 0.8, 0.05, T.wood, 0.3, 1.25, 0.42, 0.3, 0, 0);
+    limbs.ll = part(g, 0.09, 0.76, 0.09, T.bone, -0.11, 0.38, 0);
+    limbs.rl = part(g, 0.09, 0.76, 0.09, T.bone, 0.11, 0.38, 0);
+  } else {
+    const big = kind === 'zombieBig';
+    const s = big ? 1.25 : 1;
+    const skin = big ? T.zombieDark : T.zombie;
+    const ax = 0.33 * s * (big ? 1.25 : 1);
+    part(g, 0.32 * s, 0.32 * s, 0.3 * s, T.zombieHead, 0, 1.52 * s, 0.06 * s, 0.25, 0, 0.12);
+    eyes(g, 1.55 * s, 0.22 * s, 0.07 * s, 0xff3020);
+    part(g, (big ? 0.62 : 0.46) * s, 0.58 * s, 0.26 * s, T.rags, 0, 1.06 * s, 0, 0.18, 0, 0);
+    limbs.la = part(g, 0.13 * s, 0.6 * s, 0.13 * s, skin, -ax, 1.1 * s, 0.26 * s, -1.35, 0, 0);
+    limbs.ra = part(g, 0.13 * s, 0.6 * s, 0.13 * s, skin, ax, 1.08 * s, 0.24 * s, -1.25, 0, 0);
+    limbs.ll = part(g, 0.16 * s, 0.76 * s, 0.16 * s, T.pants, -0.13 * s, 0.38 * s, 0);
+    limbs.rl = part(g, 0.16 * s, 0.76 * s, 0.16 * s, T.pants, 0.13 * s, 0.38 * s, 0);
+  }
+  // invisible hitbox for reliable raycast
+  const hbH = kind === 'zombieBig' ? 2.05 : kind === 'skeleton' ? 1.85 : 1.75;
+  const hbW = kind === 'zombieBig' ? 1.0 : 0.7;
+  const hit = new THREE.Mesh(new THREE.BoxGeometry(hbW, hbH, 0.7), new THREE.MeshBasicMaterial({ visible: false }));
+  hit.position.y = hbH / 2;
+  hit.userData.keepEmi = true;
+  g.add(hit);
+  return { g, hit, limbs };
+}
 function spawnEnemy(typeKey, x, z) {
   const def = ENEMY_TYPES[typeKey];
-  const mesh = new THREE.Mesh(def.geo(), M(def.color, [1, 1], 0));
-  const h = mesh.geometry.parameters.height;
-  mesh.position.set(x, h * 0.5, z);
+  const { g: mesh, hit, limbs } = buildEnemyModel(def.model);
+  mesh.position.set(x, 0, z);
   S.add(mesh);
-  if (fallbackMode) meshToLambert(mesh);
+  if (fallbackMode) toLambertDeep(mesh);
   const e = {
-    type: typeKey, def, mesh, hp: def.hp, maxHp: def.hp, flash: 0, alive: true,
+    type: typeKey, def, mesh, hit, limbs, walk: Math.random() * 6, hp: def.hp, maxHp: def.hp, flash: 0, alive: true,
     shotCd: 0, wander: Math.random() * Math.PI * 2, touchAcc: 0,
   };
   enemies.push(e);
@@ -252,12 +352,18 @@ function spawnEnemy(typeKey, x, z) {
 function spawnWave() {
   enemies.forEach((e) => { if (e.mesh) S.remove(e.mesh); });
   enemies.length = 0;
+  // Small arena: 2–3 foes per wave, spawned on the far side away from the player
   const sets = [
-    [['tank', -3, -2], ['runner', 4, -3], ['runner', -1, 3], ['sniper', 5, 2], ['tank', 0, -5]],
-    [['runner', -4, 0], ['runner', 3, 3], ['sniper', -2, -4], ['sniper', 6, -2], ['tank', 1, 5]],
-    [['tank', -3, 3], ['runner', 4, 4], ['runner', -5, -3], ['sniper', 0, -4], ['tank', 5, 0], ['runner', -1, 0]],
+    [['runner', -4.5, -5.5], ['tank', 4.5, -5.5]],
+    [['runner', -5.5, -5], ['sniper', 5.5, -5.5]],
+    [['tank', -5, -5.5], ['runner', 5.5, -4.5], ['sniper', 0, -6]],
+    [['runner', -5.5, -5.5], ['runner', 5.5, -5.5], ['sniper', 2, -6]],
+    [['tank', -5.5, -5], ['sniper', 5.5, -5.5], ['runner', 0.5, -6.2]],
   ];
-  const list = sets[(wave - 1) % sets.length];
+  let list = sets[Math.min(wave - 1, sets.length - 1)];
+  if (wave > sets.length) list = sets[2 + ((wave - 1) % 3)];
+  const flip = player.pos.z < 0 ? -1 : 1;
+  list = list.map(([t, x, z]) => [t, x, z * flip]);
   for (const [t, x, z] of list) spawnEnemy(t, x, z);
 }
 
@@ -437,9 +543,9 @@ function tryFire() {
   gun.rotation.x = -0.1;
   gunSlide.position.z = -0.24;
   ray.setFromCamera(new THREE.Vector2(0, 0), cam);
-  const hits = ray.intersectObjects(livingEnemies().map((e) => e.mesh), false);
+  const hits = ray.intersectObjects(livingEnemies().map((e) => e.hit), false);
   if (hits[0]) {
-    const e = enemies.find((x) => x.mesh === hits[0].object && x.alive);
+    const e = enemies.find((x) => x.hit === hits[0].object && x.alive);
     if (e) {
       e.hp--;
       e.flash = 0.2;
@@ -516,6 +622,7 @@ function updateEnemies(dt) {
     const spd = def.speed * dt;
 
     if (def.ranged) {
+      m.rotation.y = Math.atan2(toP.x, toP.z);
       e.shotCd = (e.shotCd ?? 0) - dt;
       dist = horizDistToPlayer(m);
       if (dist >= def.stop && dist <= def.range && e.shotCd <= 0) {
@@ -553,7 +660,11 @@ function updateEnemies(dt) {
     }
 
     dist = clampHorizFromPlayer(m, def.stop);
-    m.position.y = (m.geometry.parameters.height ?? 1) * 0.5;
+    m.position.y = 0;
+    e.walk += dt * (def.speed * 4 + 1.5);
+    const sw = Math.sin(e.walk) * 0.45;
+    if (e.limbs.ll) { e.limbs.ll.rotation.x = sw; e.limbs.rl.rotation.x = -sw; }
+    m.rotation.z = Math.sin(e.walk * 0.5) * 0.06;
 
     if (dist <= def.melee) {
       e.touchAcc += def.touchDps * dt;
@@ -573,15 +684,34 @@ function updateEnemies(dt) {
 }
 
 function updatePickups(dt) {
+  nearPickup = null;
   for (const p of pickups) {
     if (!p.mesh) {
       p.timer -= dt;
       if (p.timer <= 0) spawnPickupSpot(p);
       continue;
     }
-    p.mesh.rotation.y += dt * 0.8;
-    if (p.mesh.position.distanceTo(player.pos) < PICKUP_R) collectPickup(p);
+    p.mesh.rotation.y += dt * 1.6;
+    p.mesh.position.y = p.baseY + 0.08 + Math.sin(performance.now() * 0.004 + p.x) * 0.06;
+    // horizontal (xz) distance only — camera is at y≈1.6, pickups sit on the floor
+    const hd = horizDistToPlayer(p.mesh);
+    if (hd < PICKUP_R) { collectPickup(p); continue; }
+    if (hd < PICKUP_PROMPT_R && (!nearPickup || hd < nearD)) { nearPickup = p; nearD = hd; }
   }
+  const btn = $('btnPick');
+  const label = nearPickup ? `✋ 拾う（${PICK_NAMES[nearPickup.kind]}）${'ontouchstart' in window ? '' : ' [F]'}` : '';
+  if (btn.dataset.label !== label) {
+    btn.dataset.label = label;
+    btn.textContent = label;
+    btn.style.display = nearPickup ? 'block' : 'none';
+  }
+}
+const PICK_NAMES = { ammo: '弾薬箱', herb: '回復草', medkit: '救急箱' };
+let nearPickup = null, nearD = 0;
+function pickNearest() {
+  if (phase !== 'play' || !nearPickup?.mesh) return;
+  collectPickup(nearPickup);
+  nearPickup = null;
 }
 
 function updatePlayer(dt) {
@@ -612,6 +742,7 @@ function updatePlayer(dt) {
 
   updateEnemies(dt);
   updatePickups(dt);
+  updateFx(dt);
   updateGunAnim(dt);
 }
 
@@ -703,6 +834,7 @@ window.addEventListener('keydown', (e) => {
   keys.add(e.code);
   if (e.code === 'KeyR') startReload();
   if (e.code === 'KeyE') useHerb();
+  if (e.code === 'KeyF') pickNearest();
   if (e.code === 'KeyM') {
     muted = !muted;
     localStorage.setItem('fps-mute', muted ? '1' : '0');
@@ -764,6 +896,7 @@ function startRun() {
 
 $('btnStart').onclick = startRun;
 $('btnReload').onclick = (e) => { e.stopPropagation(); startReload(); };
+$('btnPick').onclick = (e) => { e.stopPropagation(); pickNearest(); };
 $('btnHerb').onclick = (e) => { e.stopPropagation(); useHerb(); };
 $('muteBtn').onclick = () => {
   muted = !muted;

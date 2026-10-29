@@ -38,6 +38,9 @@
     #stickKnob{position:absolute;left:50%;top:50%;width:48px;height:48px;margin:-24px 0 0 -24px;border-radius:50%;background:#ffffff33;border:1px solid #fff6}
     #btnReload{position:absolute;right:18px;bottom:22px;pointer-events:auto;padding:10px 16px;border-radius:10px;border:1px solid #889;background:#1a222ccc;color:#eee;font-size:15px;font-weight:600;user-select:none}
     #btnHerb{position:absolute;right:18px;bottom:72px;pointer-events:auto;padding:8px 14px;border-radius:10px;border:1px solid #6a8a72;background:#1a2820cc;color:#dfe;font-size:13px;font-weight:600;user-select:none}
+    #btnPick{position:absolute;left:50%;bottom:150px;transform:translateX(-50%);pointer-events:auto;padding:12px 22px;border-radius:12px;border:2px solid #e8c860;background:#3a3010e6;color:#fff4c0;font-size:16px;font-weight:700;display:none;user-select:none;animation:pickPulse .8s infinite alternate}
+    @keyframes pickPulse{from{box-shadow:0 0 0 #e8c86000}to{box-shadow:0 0 16px #e8c860cc}}
+    #pickFlash{position:fixed;inset:0;pointer-events:none;z-index:6;opacity:0;transition:opacity .35s ease-out}
     #muteBtn{position:absolute;top:10px;right:12px;pointer-events:auto;border:none;background:#0006;color:#fff;font-size:20px;border-radius:8px;padding:4px 8px;cursor:pointer;user-select:none}
     #debugPanel{position:fixed;left:10px;bottom:10px;display:none;z-index:30;background:#101820dd;padding:8px 10px;border-radius:8px;color:#cde;font-size:12px;pointer-events:auto}
     #debugPanel button{margin:2px 4px 0 0;font-size:11px}
@@ -59,7 +62,9 @@
     <div id="stickBase"><div id="stickKnob"></div></div>
     <button type="button" id="btnHerb">🌿 回復</button>
     <button type="button" id="btnReload">リロード</button>
+    <button type="button" id="btnPick">✋ 拾う</button>
   </div>
+  <div id="pickFlash"></div>
   <div id="debugPanel">
     描画モード:
     <button type="button" id="modePs1b">PS1+バウンス</button>
