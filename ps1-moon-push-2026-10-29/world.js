@@ -146,9 +146,15 @@ export function makeAstronaut(colorIdx = 0) {
   const root = new THREE.Group();
   const accent = PAL[colorIdx % PAL.length];
   const mSuit = M(suitW);
+  const mSuitD = M(suitA);
   const mAcc = M(colTex('#' + accent.toString(16).padStart(6, '0'), 0.06));
   const mVis = M(visor);
-  const mBoot = M(colTex('#3a3632', 0.1));
+  const mVisSh = M(colTex('#6a8aa8', 0.05));
+  const mBoot = M(colTex('#2e2a26', 0.12));
+  const mGlove = M(colTex('#4a4540', 0.1));
+  const mPack = M(colTex('#5a5650', 0.08));
+  const mTank = M(colTex('#7a9098', 0.06));
+  const mGold = M(colTex('#c8a040', 0.07));
   const add = (geo, mat, p, r = [0, 0, 0], parent = root) => {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(...p);
@@ -156,15 +162,39 @@ export function makeAstronaut(colorIdx = 0) {
     parent.add(mesh);
     return mesh;
   };
-  add(new THREE.CylinderGeometry(0.22, 0.28, 0.75, 7, 1), mSuit, [0, 0.78, 0]);
-  add(new THREE.SphereGeometry(0.24, 8, 6), mSuit, [0, 1.32, 0]);
-  add(new THREE.SphereGeometry(0.26, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), mAcc, [0, 1.34, -0.02]);
-  add(new THREE.BoxGeometry(0.38, 0.14, 0.12), mVis, [0, 1.32, 0.18]);
-  add(new THREE.BoxGeometry(0.14, 0.38, 0.14), mBoot, [-0.11, 0.22, 0]);
-  add(new THREE.BoxGeometry(0.14, 0.38, 0.14), mBoot, [0.11, 0.22, 0]);
-  add(new THREE.BoxGeometry(0.12, 0.32, 0.12), mAcc, [-0.32, 0.95, 0], [0, 0, 0.25]);
-  add(new THREE.BoxGeometry(0.12, 0.32, 0.12), mAcc, [0.32, 0.95, 0], [0, 0, -0.25]);
-  add(new THREE.BoxGeometry(0.42, 0.12, 0.22), mSuit, [0, 1.05, -0.22]);
+
+  // legs + boots
+  add(new THREE.BoxGeometry(0.16, 0.34, 0.16), mSuitD, [-0.1, 0.52, 0]);
+  add(new THREE.BoxGeometry(0.16, 0.34, 0.16), mSuitD, [0.1, 0.52, 0]);
+  add(new THREE.BoxGeometry(0.18, 0.14, 0.26), mBoot, [-0.1, 0.26, 0.04]);
+  add(new THREE.BoxGeometry(0.18, 0.14, 0.26), mBoot, [0.1, 0.26, 0.04]);
+
+  // torso + chest stripe
+  add(new THREE.CylinderGeometry(0.24, 0.3, 0.62, 8, 1), mSuit, [0, 0.92, 0]);
+  add(new THREE.BoxGeometry(0.22, 0.36, 0.08), mAcc, [0, 0.95, 0.16]);
+  add(new THREE.BoxGeometry(0.34, 0.08, 0.06), mGold, [0, 1.08, 0.17]);
+
+  // PLSS backpack + O2 tank
+  add(new THREE.BoxGeometry(0.46, 0.52, 0.2), mPack, [0, 0.95, -0.2]);
+  add(new THREE.CylinderGeometry(0.09, 0.09, 0.38, 6), mTank, [0.14, 1.02, -0.28], [0.15, 0, 0]);
+  add(new THREE.CylinderGeometry(0.07, 0.07, 0.08, 6), mGold, [0.14, 1.24, -0.28]);
+
+  // arms (upper suit + gloves)
+  add(new THREE.BoxGeometry(0.12, 0.28, 0.12), mSuit, [-0.34, 0.98, 0], [0, 0, 0.35]);
+  add(new THREE.BoxGeometry(0.12, 0.28, 0.12), mSuit, [0.34, 0.98, 0], [0, 0, -0.35]);
+  add(new THREE.BoxGeometry(0.14, 0.14, 0.14), mGlove, [-0.42, 0.82, 0.06], [0, 0, 0.35]);
+  add(new THREE.BoxGeometry(0.14, 0.14, 0.14), mGlove, [0.42, 0.82, 0.06], [0, 0, -0.35]);
+
+  // shoulders
+  add(new THREE.SphereGeometry(0.11, 6, 5), mSuitD, [-0.26, 1.12, 0]);
+  add(new THREE.SphereGeometry(0.11, 6, 5), mSuitD, [0.26, 1.12, 0]);
+
+  // helmet shell + gold visor ring + glass
+  add(new THREE.SphereGeometry(0.27, 8, 7), mSuit, [0, 1.42, 0]);
+  add(new THREE.TorusGeometry(0.21, 0.035, 5, 10, Math.PI * 1.05), mGold, [0, 1.4, 0.08], [0.35, 0, 0]);
+  add(new THREE.BoxGeometry(0.36, 0.2, 0.1), mVis, [0, 1.4, 0.2]);
+  add(new THREE.BoxGeometry(0.32, 0.08, 0.06), mVisSh, [0, 1.52, 0.19]);
+
   root.userData.colorIdx = colorIdx;
   return root;
 }

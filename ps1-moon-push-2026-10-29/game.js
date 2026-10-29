@@ -1,4 +1,4 @@
-// PS1 Moon Push — lobby space scene → moon arena match
+// PS1 Moon Push — float in space (title + matchmaking) → moon arena on countdown
 import * as THREE from 'three';
 import { createPipeline } from '../ps1-tps-explore-rpg-2026-10-29/render.js';
 import { buildArena, buildLobbySpace, tickLobbyFloat, makeAstronaut, MATCH_PLAYERS } from './world.js';
@@ -194,15 +194,16 @@ let lastDeathCount = 0;
 let lastCdBeep = -1;
 
 function syncBgm() {
-  if (mode === 'title') aud.setBgm('off');
-  else if (phase === 'play' || (phase === 'countdown' && view === 'arena')) aud.setBgm('match');
-  else if (phase === 'result') aud.setBgm('off');
-  else aud.setBgm('lobby');
+  if (phase === 'result') aud.setBgm('off');
+  else if (phase === 'play' || phase === 'countdown') aud.setBgm('match');
+  else if (view === 'lobby') aud.setBgm('lobby');
+  else aud.setBgm('off');
 }
 
 function paintMuteBtn() {
   $('sndBtn').textContent = aud.muted ? '♪ OFF' : '♪ ON';
   $('sndBtn').classList.toggle('off', aud.muted);
+  syncBgm();
 }
 
 const defaultName = () => localStorage.getItem('moonpush-name') || `Astro-${(Math.random() * 8999 + 1000 | 0)}`;
@@ -244,6 +245,7 @@ function showBanner(t) {
 }
 
 function onMatchApproach() {
+  if (view !== 'lobby') return;
   goToArena();
   setPlayControls(false);
   syncBgm();
@@ -312,10 +314,8 @@ function handleServerMsg(msg) {
     case 'state': {
       const p = msg.phase ?? 'play';
       if (p === 'play' || p === 'countdown') botFillTriggered = true;
-      if (p === 'play' || p === 'countdown') {
-        if (phase !== 'play') onMatchApproach();
-        if (p === 'play' && phase !== 'play') onMatchPlaying();
-      }
+      if ((p === 'play' || p === 'countdown') && view === 'lobby') onMatchApproach();
+      if (p === 'play' && phase !== 'play') onMatchPlaying();
       phase = p;
       timeLeft = msg.timeLeft ?? msg.time ?? msg.t ?? timeLeft;
       lastState = normalizePlayers(msg);
@@ -396,13 +396,13 @@ function startOffline(name, fromFail = false) {
 }
 
 function beginPlay() {
-  $('title').classList.add('hide');
   const name = $('nameIn').value.trim() || defaultName();
   localStorage.setItem('moonpush-name', name);
   playerName = name;
   aud.unlock();
   aud.sfx('select');
   lastDeathCount = 0;
+  $('title').classList.add('hide');
   startOnline(name);
   syncBgm();
 }
