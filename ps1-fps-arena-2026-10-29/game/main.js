@@ -355,6 +355,52 @@ function collectFx(kind, pos) {
   fxParts.push(ring);
   edgeFlash(FX_COL[kind][1]);
 }
+// HIT_MUZZLE_FX_v1: enemy impact sparks/blood (shares fxParts/updateFx, capped)
+const FX_MAX = 140;
+const HIT_GEO = new THREE.BoxGeometry(0.045, 0.045, 0.045);
+const HIT_MATS = {
+  spark: new THREE.MeshBasicMaterial({ color: 0xffa020 }),
+  sparkHot: new THREE.MeshBasicMaterial({ color: 0xfff4b0 }),
+  blood: new THREE.MeshBasicMaterial({ color: 0xa01010 }),
+  bloodDark: new THREE.MeshBasicMaterial({ color: 0x400808 }),
+  flash: new THREE.MeshBasicMaterial({ color: 0xffe080, transparent: true, opacity: 0.9, depthWrite: false }),
+};
+function fxTrim() {
+  while (fxParts.length > FX_MAX) { const o = fxParts.shift(); S.remove(o); }
+}
+const _hitN = new THREE.Vector3();
+function hitFx(hit, head, rayDir) {
+  const pos = hit.point.clone();
+  if (hit.face) _hitN.copy(hit.face.normal).transformDirection(hit.object.matrixWorld);
+  else _hitN.copy(rayDir).negate();
+  if (_hitN.dot(rayDir) > 0) _hitN.negate();
+  pos.addScaledVector(_hitN, 0.04);
+  const nSpark = head ? 16 : 9, nBlood = head ? 10 : 6;
+  for (let i = 0; i < nSpark + nBlood; i++) {
+    const isSpark = i < nSpark;
+    const mat = isSpark ? (head ? (i % 3 ? HIT_MATS.sparkHot : HIT_MATS.spark) : (i % 3 ? HIT_MATS.spark : HIT_MATS.sparkHot))
+      : (i % 2 ? HIT_MATS.blood : HIT_MATS.bloodDark);
+    const m = new THREE.Mesh(HIT_GEO, mat);
+    m.position.copy(pos);
+    const sp = isSpark ? (head ? 3.5 : 2.6) + Math.random() * 2.5 : 0.8 + Math.random() * 1.4;
+    const v = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.3, Math.random() - 0.5).multiplyScalar(1.6).add(_hitN).normalize();
+    m.userData.v = v.multiplyScalar(sp);
+    m.userData.life = isSpark ? 0.12 + Math.random() * 0.16 : 0.3 + Math.random() * 0.25;
+    m.userData.g = isSpark ? 4 : 11;
+    if (isSpark) m.scale.set(0.7, 0.7, 1.8);
+    S.add(m);
+    fxParts.push(m);
+  }
+  const f = new THREE.Mesh(HIT_GEO, HIT_MATS.flash);
+  f.position.copy(pos);
+  f.scale.setScalar(head ? 4.5 : 3);
+  f.userData.v = new THREE.Vector3();
+  f.userData.life = 0.07;
+  f.userData.pop = true;
+  S.add(f);
+  fxParts.push(f);
+  fxTrim();
+}
 function updateFx(dt) {
   for (let i = fxParts.length - 1; i >= 0; i--) {
     const m = fxParts[i];
@@ -362,7 +408,8 @@ function updateFx(dt) {
     if (m.userData.life <= 0) { S.remove(m); fxParts.splice(i, 1); continue; }
     m.position.addScaledVector(m.userData.v, dt);
     if (m.userData.ring) m.scale.multiplyScalar(1 + dt * 3.5);
-    else { m.userData.v.y -= 9 * dt; m.rotation.x += dt * 8; m.rotation.y += dt * 6; }
+    else if (m.userData.pop) m.scale.multiplyScalar(1 + dt * 10);
+    else { m.userData.v.y -= (m.userData.g ?? 9) * dt; m.rotation.x += dt * 8; m.rotation.y += dt * 6; }
   }
 }
 let hsTimer = 0;
@@ -461,12 +508,45 @@ gunSlide.position.set(0.22, -0.16, -0.18);
 const gunGrip = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.12, 0.1, 1, 1, 1), M(T.wood, [1, 1], 0));
 gunGrip.position.set(0.22, -0.24, -0.28);
 gun.add(gunBody, gunSlide, gunGrip);
+// HIT_MUZZLE_FX_v1: muzzle flash at barrel tip (gunBody front z ≈ -0.51)
+const muzzle = new THREE.Group();
+muzzle.position.set(0.22, -0.17, -0.54);
+const MUZ_MAT = new THREE.MeshBasicMaterial({ color: 0xffd060, transparent: true, opacity: 0.95, depthWrite: false, side: THREE.DoubleSide });
+const MUZ_CORE = new THREE.MeshBasicMaterial({ color: 0xfffbe0, depthWrite: false, side: THREE.DoubleSide });
+const muzA = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.16), MUZ_MAT);
+const muzB = new THREE.Mesh(new THREE.PlaneGeometry(0.16, 0.16), MUZ_MAT);
+muzB.rotation.z = Math.PI / 4;
+const muzSide = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.2), MUZ_MAT);
+muzSide.rotation.x = -Math.PI / 2;
+muzSide.position.z = -0.06;
+const muzCore = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), MUZ_CORE);
+muzzle.add(muzA, muzB, muzSide, muzCore);
+muzzle.traverse((o) => { o.renderOrder = 10; });
+muzzle.visible = false;
+const muzLight = new THREE.PointLight(0xffb040, 0, 6, 2);
+muzLight.position.set(0.22, -0.15, -0.6);
+gun.add(muzzle, muzLight);
+let muzzleT = 0;
+function muzzleFlash() {
+  muzzleT = 0.06;
+  muzzle.visible = true;
+  muzzle.rotation.z = Math.random() * Math.PI;
+  muzzle.scale.setScalar(0.8 + Math.random() * 0.5);
+  muzLight.intensity = 3.5;
+}
+function updateMuzzle(dt) {
+  if (muzzleT <= 0) return;
+  muzzleT -= dt;
+  if (muzzleT <= 0) { muzzle.visible = false; muzLight.intensity = 0; return; }
+  muzLight.intensity = 3.5 * (muzzleT / 0.06);
+}
 cam.add(gun);
 S.add(cam);
 
 let reloadSfxStage = 0;
 
 function updateGunAnim(dt) {
+  updateMuzzle(dt);
   if (player.reloading) {
     const t = 1 - player.reloadT / player.reloadDur;
     gun.rotation.x = -0.12 - 0.42 * Math.sin(Math.min(1, t * 1.1) * Math.PI);
@@ -770,6 +850,7 @@ function tryFire() {
   player.ammo--;
   player.fireCd = player.fireRate;
   sfxShoot();
+  muzzleFlash(); // HIT_MUZZLE_FX_v1
   gun.rotation.x = -0.1;
   gunSlide.position.z = -0.24;
   ray.setFromCamera(new THREE.Vector2(0, 0), cam);
@@ -780,6 +861,7 @@ function tryFire() {
     const e = findEnemyFromHit(hits[0].object);
     if (e) {
       const head = hits[0].object.userData?.hitZone === 'head';
+      hitFx(hits[0], head, ray.ray.direction); // HIT_MUZZLE_FX_v1
       const dmg = head ? 2 : 1;
       e.hp -= dmg;
       e.flash = head ? 0.35 : 0.2;
