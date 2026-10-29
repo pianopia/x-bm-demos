@@ -1,13 +1,76 @@
 // Local / bot-fill match simulation (4 players: you + 3 NPCs).
+// Push physics mirror EDEN2 MoonPushGame intent (impulse + slide); server authoritative online.
 import { ARENA_R, MATCH_SEC, MATCH_PLAYERS, fellOff } from './world.js';
 
 export { MATCH_PLAYERS };
+
+/** Tunables — keep aligned with EDEN2 `realtime/` MoonPushGame when possible. */
+export const PUSH = {
+  range: 1.45,
+  coneDot: 0.2,
+  impulse: 17.5,
+  recoil: 4.2,
+  cooldown: 0.68,
+  whiffBoost: 5,
+};
+
+export const MOVE = {
+  accel: 7.2,
+  drag: 2.8,
+  maxSpeed: 11,
+  bodyR: 0.55,
+};
 
 const BOT_NAMES = ['Bot-Alpha', 'Bot-Beta', 'Bot-Gamma'];
 
 function spawnPos(i, n) {
   const a = (i / n) * Math.PI * 2;
   return { x: Math.cos(a) * 3.5, z: Math.sin(a) * 3.5 };
+}
+
+function clampSpeed(p) {
+  const s = Math.hypot(p.vx, p.vz);
+  if (s > MOVE.maxSpeed) {
+    p.vx = (p.vx / s) * MOVE.maxSpeed;
+    p.vz = (p.vz / s) * MOVE.maxSpeed;
+  }
+}
+
+/** @returns {boolean} hit at least one target (mirrors EDEN2 tryDirectedPush). */
+function tryDirectedPush(attacker, players, dirX, dirZ) {
+  const len = Math.hypot(dirX, dirZ);
+  if (len < 1e-4) {
+    dirX = Math.sin(attacker.yaw);
+    dirZ = Math.cos(attacker.yaw);
+  } else {
+    dirX /= len;
+    dirZ /= len;
+  }
+  let hits = 0;
+  for (const q of players) {
+    if (q === attacker || !q.alive) continue;
+    const dx = q.x - attacker.x;
+    const dz = q.z - attacker.z;
+    const d = Math.hypot(dx, dz);
+    if (d > PUSH.range || d < 1e-4) continue;
+    const nx = dx / d;
+    const nz = dz / d;
+    const dot = dirX * nx + dirZ * nz;
+    if (dot < PUSH.coneDot) continue;
+    const falloff = 1 - (d / PUSH.range) * 0.35;
+    const mag = PUSH.impulse * falloff * (0.85 + dot * 0.35);
+    q.vx += nx * mag;
+    q.vz += nz * mag;
+    hits++;
+  }
+  if (hits > 0) {
+    attacker.vx -= dirX * PUSH.recoil;
+    attacker.vz -= dirZ * PUSH.recoil;
+  } else {
+    attacker.vx += dirX * PUSH.whiffBoost;
+    attacker.vz += dirZ * PUSH.whiffBoost;
+  }
+  return hits > 0;
 }
 
 export class OfflineRoom {
@@ -32,6 +95,7 @@ export class OfflineRoom {
     this._lobbyT = lobbySec;
     this._acc = 0;
     this.input = { x: 0, z: 0, push: false };
+    this.lastPushHit = false;
   }
 
   startLobbyTimer(dt) {
@@ -68,6 +132,7 @@ export class OfflineRoom {
     }
 
     this.tick++;
+    this.lastPushHit = false;
     for (const p of this.players) {
       if (p.bot) this._botAI(p, dt);
       else this._applyInput(p, this.input, dt);
@@ -87,25 +152,14 @@ export class OfflineRoom {
   }
 
   _applyInput(p, inp, dt) {
-    const sp = 7.5;
-    p.vx += inp.x * sp * dt;
-    p.vz += inp.z * sp * dt;
+    p.vx += inp.x * MOVE.accel * dt;
+    p.vz += inp.z * MOVE.accel * dt;
     if (inp.push && p.pushCd <= 0) {
-      p.pushCd = 0.55;
-      const len = Math.hypot(inp.x, inp.z);
-      let fx;
-      let fz;
-      if (len > 0.05) {
-        fx = (inp.x / len) * 11;
-        fz = (inp.z / len) * 11;
-      } else {
-        fx = Math.sin(p.yaw) * 11;
-        fz = Math.cos(p.yaw) * 11;
-      }
-      p.vx += fx;
-      p.vz += fz;
+      p.pushCd = PUSH.cooldown;
+      this.lastPushHit = tryDirectedPush(p, this.players, inp.x, inp.z);
     }
     if (Math.abs(inp.x) + Math.abs(inp.z) > 0.05) p.yaw = Math.atan2(inp.x, inp.z);
+    clampSpeed(p);
   }
 
   _botAI(p, dt) {
@@ -116,7 +170,7 @@ export class OfflineRoom {
       p.think = 0.6 + Math.random();
       const dx = local.x - p.x, dz = local.z - p.z;
       const d = Math.hypot(dx, dz) || 1;
-      if (d < 2.2 && Math.random() < 0.35) push = true;
+      if (d < PUSH.range * 0.95 && Math.random() < 0.4) push = true;
       else { tx = dx / d; tz = dz / d; }
     } else {
       tx = Math.sin(this.tick * 0.07 + p.id.length);
@@ -126,12 +180,13 @@ export class OfflineRoom {
   }
 
   _integrate(dt) {
-    const fr = Math.pow(0.08, dt);
+    const fr = Math.exp(-MOVE.drag * dt);
     for (const p of this.players) {
       p.vx *= fr;
       p.vz *= fr;
       p.x += p.vx * dt;
       p.z += p.vz * dt;
+      clampSpeed(p);
       if (fellOff(p.x, p.z)) {
         p.deaths++;
         const s = spawnPos(this.players.indexOf(p), this.players.length);
@@ -141,7 +196,7 @@ export class OfflineRoom {
   }
 
   _collide() {
-    const R = 0.55;
+    const R = MOVE.bodyR;
     for (let i = 0; i < this.players.length; i++) {
       for (let j = i + 1; j < this.players.length; j++) {
         const a = this.players[i], b = this.players[j];
@@ -154,7 +209,7 @@ export class OfflineRoom {
         b.x += nx * overlap * 0.5; b.z += nz * overlap * 0.5;
         const rv = (a.vx - b.vx) * nx + (a.vz - b.vz) * nz;
         if (rv < 0) {
-          const imp = rv * -0.85;
+          const imp = rv * -0.45;
           a.vx -= imp * nx; a.vz -= imp * nz;
           b.vx += imp * nx; b.vz += imp * nz;
         }

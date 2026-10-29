@@ -12,7 +12,6 @@ export class MoonAudio {
     this.ctx = null;
     this.muted = p.muted;
     this.vol = p.vol;
-    this._bgm = null;
     this._bgmGain = null;
     this._master = null;
     this._mode = 'off';
@@ -30,7 +29,7 @@ export class MoonAudio {
     this._master.gain.value = this.muted ? 0 : this.vol;
     this._master.connect(this.ctx.destination);
     this._bgmGain = this.ctx.createGain();
-    this._bgmGain.gain.value = 0.22;
+    this._bgmGain.gain.value = 0;
     this._bgmGain.connect(this._master);
   }
 
@@ -58,31 +57,45 @@ export class MoonAudio {
   /** @param {'lobby'|'match'|'off'} mode */
   setBgm(mode) {
     this.unlock();
-    if (!this.ctx || this.muted) { this._mode = mode; return; }
-    if (this._mode === mode) return;
     this._mode = mode;
     this._step = 0;
     this._nextNote = 0;
+    if (!this.ctx || this.muted) return;
+    const t = this.ctx.currentTime;
     if (mode === 'off') {
-      this._bgmGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.15);
+      this._bgmGain.gain.setTargetAtTime(0, t, 0.25);
       return;
     }
-    this._bgmGain.gain.setTargetAtTime(mode === 'lobby' ? 0.18 : 0.26, this.ctx.currentTime, 0.2);
+    const target = mode === 'lobby' ? 0.14 : 0.22;
+    this._bgmGain.gain.setTargetAtTime(target, t, 0.35);
   }
 
   tick(dt) {
     if (!this.ctx || this.muted || this._mode === 'off') return;
     this._nextNote -= dt;
     if (this._nextNote > 0) return;
-    const lobby = this._mode === 'lobby';
-    const bpm = lobby ? 92 : 128;
-    const beat = 60 / bpm / 2;
+
+    if (this._mode === 'lobby') this._tickLobbyBgm();
+    else this._tickMatchBgm();
+  }
+
+  _tickLobbyBgm() {
+    const beat = 60 / 78 / 2;
     this._nextNote = beat;
-    const scale = lobby
-      ? [196, 220, 262, 294, 330, 262, 220, 196]
-      : [131, 165, 196, 220, 262, 220, 196, 165];
+    const melody = [523, 659, 784, 880, 784, 659, 587, 523];
+    const f = melody[this._step % melody.length];
+    this._blip(f, 0.16, 'triangle', 0.055);
+    if (this._step % 2 === 0) this._blip(f * 0.5, 0.22, 'sine', 0.028);
+    if (this._step % 4 === 0) this._blip(196, 0.28, 'triangle', 0.04);
+    this._step++;
+  }
+
+  _tickMatchBgm() {
+    const beat = 60 / 128 / 2;
+    this._nextNote = beat;
+    const scale = [131, 165, 196, 220, 262, 220, 196, 165];
     const f = scale[this._step++ % scale.length];
-    this._blip(f, lobby ? 0.07 : 0.05, lobby ? 'triangle' : 'square', lobby ? 0.09 : 0.11);
+    this._blip(f, 0.05, 'square', 0.1);
   }
 
   _blip(freq, dur, type = 'square', gain = 0.12) {
@@ -92,12 +105,12 @@ export class MoonAudio {
     o.type = type;
     o.frequency.value = freq;
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(gain, t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0001, gain), t0 + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     o.connect(g);
     g.connect(this._bgmGain);
     o.start(t0);
-    o.stop(t0 + dur + 0.02);
+    o.stop(t0 + dur + 0.03);
   }
 
   sfx(name) {
@@ -120,8 +133,12 @@ export class MoonAudio {
     };
     switch (name) {
       case 'push':
-        hit(180, 0.08, 'square', 0.22, 120);
-        hit(90, 0.06, 'triangle', 0.12, -30);
+        hit(120, 0.06, 'square', 0.18, 80);
+        hit(200, 0.1, 'triangle', 0.16, 140);
+        break;
+      case 'pushHit':
+        hit(160, 0.08, 'square', 0.2, 100);
+        hit(240, 0.12, 'triangle', 0.14);
         break;
       case 'fall':
         hit(440, 0.15, 'square', 0.18, -320);

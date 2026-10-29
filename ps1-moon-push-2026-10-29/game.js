@@ -50,7 +50,7 @@ function ensureAvatar(id, colorIdx) {
   if (!avatars.has(id)) {
     const g = makeAstronaut(colorIdx);
     arenaScene.add(g);
-    avatars.set(id, { g, target: new V3(), smooth: new V3() });
+    avatars.set(id, { g, smooth: new V3(), vel: new V3(), snap: new V3() });
   }
   return avatars.get(id);
 }
@@ -185,6 +185,8 @@ let alive = 0;
 let offline = null;
 let net = null;
 let lastState = null;
+let lastStateAt = 0;
+let lastStateTick = -1;
 let inputAcc = 0;
 let bannerT = 0;
 let cdShown = -1;
@@ -193,7 +195,7 @@ let lastCdBeep = -1;
 
 function syncBgm() {
   if (mode === 'title') aud.setBgm('off');
-  else if (phase === 'play') aud.setBgm('match');
+  else if (phase === 'play' || (phase === 'countdown' && view === 'arena')) aud.setBgm('match');
   else if (phase === 'result') aud.setBgm('off');
   else aud.setBgm('lobby');
 }
@@ -244,12 +246,14 @@ function showBanner(t) {
 function onMatchApproach() {
   goToArena();
   setPlayControls(false);
+  syncBgm();
 }
 
 function onMatchPlaying() {
   goToArena();
   setPlayControls(true);
   $('lobby').classList.remove('show');
+  syncBgm();
 }
 
 function updateLobbyUi() {
@@ -315,6 +319,8 @@ function handleServerMsg(msg) {
       phase = p;
       timeLeft = msg.timeLeft ?? msg.time ?? msg.t ?? timeLeft;
       lastState = normalizePlayers(msg);
+      lastStateAt = clock.elapsedTime;
+      lastStateTick = msg.tick ?? lastStateTick;
       alive = msg.alive ?? msg.aliveCount ?? lastState.filter(pl => pl.alive).length;
       const me = lastState.find(pl => pl.id === myId);
       if (me) myDeaths = me.deaths;
@@ -431,19 +437,39 @@ function updateArenaCamera(dt) {
   cam.lookAt(tgt.x, tgt.y, tgt.z);
 }
 
-function syncAvatars(players, dt, localMv = null) {
+function syncAvatars(players, dt, localMv = null, opts = {}) {
+  const stateAge = opts.stateAge ?? 0;
+  const extrap = Math.min(0.14, Math.max(0, stateAge));
   const ids = new Set(players.map(p => p.id));
   for (const id of avatars.keys()) if (!ids.has(id)) removeAvatar(id);
   players.forEach((p, i) => {
     const a = ensureAvatar(p.id, i);
-    a.target.set(p.x, 0, p.z);
-    a.smooth.lerp(a.target, 1 - Math.pow(0.00001, dt));
+    const vx = p.vx ?? 0;
+    const vz = p.vz ?? 0;
+    a.vel.set(vx, 0, vz);
+    a.snap.set(p.x, 0, p.z);
+    const px = p.x + vx * extrap;
+    const pz = p.z + vz * extrap;
+    const speed = Math.hypot(vx, vz);
+    const corr = speed > 2 ? 16 : speed > 0.5 ? 11 : 7;
+    const alpha = 1 - Math.exp(-corr * dt);
+    if (a.smooth.lengthSq() < 1e-8) a.smooth.set(px, 0, pz);
+    const err = Math.hypot(px - a.smooth.x, pz - a.smooth.z);
+    if (err > 2.5) a.smooth.set(px, 0, pz);
+    else {
+      a.smooth.x += (px - a.smooth.x) * alpha;
+      a.smooth.z += (pz - a.smooth.z) * alpha;
+    }
+    if (opts.integrateVel !== false && speed > 0.3) {
+      a.smooth.x += vx * dt * 0.92;
+      a.smooth.z += vz * dt * 0.92;
+    }
     a.g.position.copy(a.smooth);
     if (p.id === myId && localMv) {
       updateLocalFace(a, localMv, dt);
     } else {
       let target = p.yaw;
-      if (Math.abs(p.vx) + Math.abs(p.vz) > 0.05) target = Math.atan2(p.vx, p.vz);
+      if (Math.abs(vx) + Math.abs(vz) > 0.05) target = Math.atan2(vx, vz);
       if (target != null && !Number.isNaN(target)) {
         let d = target - a.g.rotation.y;
         d = Math.atan2(Math.sin(d), Math.cos(d));
@@ -508,7 +534,9 @@ R.setAnimationLoop(() => {
         offline.input.x = lastMove.x;
         offline.input.z = lastMove.z;
       }
-      if (pushPulse) aud.sfx('push');
+      if (pushPulse) {
+        aud.sfx(offline.lastPushHit ? 'pushHit' : 'push');
+      }
       offline.input.push = pushPulse;
       pushPulse = false;
     }
@@ -521,7 +549,7 @@ R.setAnimationLoop(() => {
     updateHud();
     if (view === 'arena') {
       const mv = phase === 'play' ? readMoveWorld() : null;
-      syncAvatars(st, dt, mv);
+      syncAvatars(st, dt, mv, { stateAge: 0, integrateVel: false });
     }
   } else if (mode === 'online') {
     if ((phase === 'lobby' || phase === 'connecting') && !botFillTriggered) {
@@ -541,7 +569,8 @@ R.setAnimationLoop(() => {
     }
     if (lastState && view === 'arena') {
       const mv = phase === 'play' ? readMoveWorld() : null;
-      syncAvatars(lastState, dt, mv);
+      const stateAge = clock.elapsedTime - lastStateAt;
+      syncAvatars(lastState, dt, mv, { stateAge, integrateVel: true });
     }
     updateHud();
   }

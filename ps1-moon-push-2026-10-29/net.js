@@ -2,6 +2,10 @@
  * EDEN2 moon-push WebSocket client.
  * Protocol: pianopia/EDEN2 realtime/MOONPUSH.md (welcome / lobby / countdown / state / result).
  * Override URL: ?ws=wss://host/path
+ *
+ * Input (unchanged): `{ type:"input", seq, move:{x,z}, push:boolean }` — move is world XZ;
+ * server MoonPushGame should apply cone/range impulse to targets + recoil (see offline.js PUSH/MOVE).
+ * State players include x/z and vx/vy/vz (EDEN2 #3+) for client dead-reckoning / knockback slide.
  */
 const FALLBACKS = [
   'wss://realtime.eden14.com/moonpush',
@@ -107,7 +111,7 @@ export class MoonNet {
   }
 }
 
-/** Normalize server state player list to { id, name, x, z, deaths, alive, yaw } */
+/** Normalize server state player list (positions + velocities for slide interpolation). */
 export function normalizePlayers(msg) {
   const raw = msg.players ?? msg.roster ?? [];
   return raw.map((p, i) => ({
@@ -118,7 +122,8 @@ export function normalizePlayers(msg) {
     deaths: p.deaths ?? p.d ?? 0,
     alive: p.alive !== false && p.eliminated !== true,
     yaw: p.yaw ?? p.r ?? 0,
-    vx: p.vx ?? 0,
-    vz: p.vz ?? 0,
+    vx: +p.vx || 0,
+    vy: +p.vy || 0,
+    vz: +p.vz || 0,
   }));
 }
