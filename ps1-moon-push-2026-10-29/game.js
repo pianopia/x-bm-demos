@@ -1,7 +1,7 @@
-// PS1 Moon Push — online sumo + offline practice
+// PS1 Moon Push — lobby space scene → moon arena match
 import * as THREE from 'three';
 import { createPipeline } from '../ps1-tps-explore-rpg-2026-10-29/render.js';
-import { buildArena, makeAstronaut } from './world.js';
+import { buildArena, buildLobbySpace, tickLobbyFloat, makeAstronaut } from './world.js';
 import { MoonNet, normalizePlayers } from './net.js';
 import { OfflineRoom } from './offline.js';
 
@@ -13,13 +13,22 @@ R.setPixelRatio(1);
 R.setSize(innerWidth, innerHeight);
 document.body.prepend(R.domElement);
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0.02, 0.025, 0.04);
-scene.fog = new THREE.FogExp2(0x050608, 0.028);
+const lobbyScene = new THREE.Scene();
+lobbyScene.background = new THREE.Color(0.01, 0.012, 0.028);
+lobbyScene.fog = new THREE.FogExp2(0x020308, 0.008);
 
-const cam = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.05, 120);
+const arenaScene = new THREE.Scene();
+arenaScene.background = new THREE.Color(0.02, 0.025, 0.04);
+arenaScene.fog = new THREE.FogExp2(0x050608, 0.028);
+
+const cam = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.05, 200);
 const pipe = createPipeline(R);
-buildArena(scene);
+const lobby = buildLobbySpace(lobbyScene);
+buildArena(arenaScene);
+
+let view = 'lobby'; // lobby | arena
+let trans = null; // { phase: 'out'|'in', t: number }
+const TRANS_DUR = 0.4;
 
 addEventListener('resize', () => {
   cam.aspect = innerWidth / innerHeight;
@@ -32,15 +41,44 @@ const avatars = new Map();
 function ensureAvatar(id, colorIdx) {
   if (!avatars.has(id)) {
     const g = makeAstronaut(colorIdx);
-    scene.add(g);
+    arenaScene.add(g);
     avatars.set(id, { g, target: new V3(), smooth: new V3() });
   }
   return avatars.get(id);
 }
 
+function clearArenaAvatars() {
+  for (const [id, a] of avatars) {
+    arenaScene.remove(a.g);
+    avatars.delete(id);
+  }
+}
+
 function removeAvatar(id) {
   const a = avatars.get(id);
-  if (a) { scene.remove(a.g); avatars.delete(id); }
+  if (a) { arenaScene.remove(a.g); avatars.delete(id); }
+}
+
+function goToArena() {
+  if (view === 'arena' || trans) return;
+  trans = { phase: 'out', t: 0 };
+}
+
+function finishTransition() {
+  view = 'arena';
+  clearArenaAvatars();
+}
+
+function currentScene() {
+  return view === 'arena' ? arenaScene : lobbyScene;
+}
+
+function inMatchView() {
+  return view === 'arena' && (phase === 'countdown' || phase === 'play' || phase === 'result');
+}
+
+function setPlayControls(on) {
+  document.body.classList.toggle('play', on);
 }
 
 const keys = new Set();
@@ -58,7 +96,7 @@ const readMove = () => {
 };
 
 addEventListener('keydown', e => {
-  if (e.code === 'Space') { pushPulse = true; e.preventDefault(); }
+  if (e.code === 'Space' && phase === 'play') { pushPulse = true; e.preventDefault(); }
   keys.add(e.code);
 });
 addEventListener('keyup', e => keys.delete(e.code));
@@ -85,7 +123,7 @@ joyEl.addEventListener('pointerup', e => {
   joyId = null; joy.x = joy.y = 0;
   joyK.style.transform = '';
 });
-$('pushBtn').addEventListener('pointerdown', () => { pushPulse = true; });
+$('pushBtn').addEventListener('pointerdown', () => { if (phase === 'play') pushPulse = true; });
 
 if ('ontouchstart' in window) document.body.classList.add('touch');
 
@@ -128,6 +166,17 @@ function showBanner(t) {
   bannerT = 1.2;
 }
 
+function onMatchApproach() {
+  goToArena();
+  setPlayControls(false);
+}
+
+function onMatchPlaying() {
+  goToArena();
+  setPlayControls(true);
+  $('lobby').classList.remove('show');
+}
+
 function handleServerMsg(msg) {
   switch (msg.type) {
     case 'welcome':
@@ -137,33 +186,42 @@ function handleServerMsg(msg) {
     case 'lobby':
     case 'queue':
       phase = 'lobby';
+      view = 'lobby';
+      setPlayControls(false);
       $('lobby').classList.add('show');
       $('lobbyText').textContent = 'マッチメイキング';
-      $('lobbySub').textContent = `${msg.count ?? msg.players?.length ?? msg.inQueue ?? '?'} 人 / 開始 ${msg.needed ?? msg.min ?? 2} 人`;
+      $('lobbySub').textContent = `${msg.count ?? msg.players?.length ?? msg.inQueue ?? '?'} 人 / 開始 ${msg.needed ?? msg.min ?? 2} 人 — 宇宙で待機中`;
       break;
     case 'countdown': {
       phase = 'countdown';
+      onMatchApproach();
       const n = msg.seconds ?? msg.value ?? msg.n ?? 3;
       showBanner(String(n));
       break;
     }
     case 'start':
       phase = 'play';
-      $('lobby').classList.remove('show');
+      onMatchPlaying();
       showBanner('START!');
       break;
     case 'state': {
-      phase = msg.phase ?? 'play';
+      const p = msg.phase ?? 'play';
+      if (p === 'play' || p === 'countdown') {
+        if (phase !== 'play') onMatchApproach();
+        if (p === 'play' && phase !== 'play') onMatchPlaying();
+      }
+      phase = p;
       timeLeft = msg.timeLeft ?? msg.time ?? msg.t ?? timeLeft;
       lastState = normalizePlayers(msg);
-      alive = msg.alive ?? msg.aliveCount ?? lastState.filter(p => p.alive).length;
-      const me = lastState.find(p => p.id === myId);
+      alive = msg.alive ?? msg.aliveCount ?? lastState.filter(pl => pl.alive).length;
+      const me = lastState.find(pl => pl.id === myId);
       if (me) myDeaths = me.deaths;
       updateHud();
       break;
     }
     case 'result':
       phase = 'result';
+      setPlayControls(false);
       showResult(msg.scores ?? msg.standings ?? msg.players ?? lastState);
       break;
     default:
@@ -189,7 +247,12 @@ function showResult(rows) {
 function startOnline(name) {
   mode = 'online';
   phase = 'connecting';
+  view = 'lobby';
+  setPlayControls(false);
   setStatus('Realtime に接続中…');
+  $('lobby').classList.add('show');
+  $('lobbyText').textContent = '接続中';
+  $('lobbySub').textContent = '宇宙軌道上でクルー待機…';
   net = new MoonNet({
     onStatus(st, detail) {
       if (st === 'online') setStatus(`オンライン (${detail})`, '');
@@ -207,10 +270,12 @@ function startOffline(name, fromFail = false) {
   myId = 'local';
   offline = new OfflineRoom(name);
   phase = 'lobby';
+  view = 'lobby';
   cdShown = -1;
+  setPlayControls(false);
   $('lobby').classList.add('show');
   $('lobbyText').textContent = fromFail ? 'offline practice' : 'オフライン練習';
-  $('lobbySub').textContent = 'ボット 3 体 / サーバーなし';
+  $('lobbySub').textContent = '短い宇宙待機 → 月面アリーナ（ボット3体）';
   setStatus('offline practice — WS 未接続', 'practice');
 }
 
@@ -226,8 +291,21 @@ $('retryBtn').onclick = () => { $('result').classList.remove('show'); location.r
 
 const camOff = new V3(0, 5.5, 10);
 const lookAt = new V3();
+const lobbyCamBase = new V3(0, 2.2, 11);
+const lobbyLook = new V3(0, 1.2, -6);
 
-function updateCamera(dt) {
+function updateLobbyCamera(t, dt) {
+  const orbit = t * 0.18;
+  cam.position.set(
+    lobbyCamBase.x + Math.sin(orbit) * 2.8,
+    lobbyCamBase.y + Math.sin(t * 0.5) * 0.25,
+    lobbyCamBase.z + Math.cos(orbit) * 0.6,
+  );
+  const look = lobbyLook.clone().add(new V3(Math.sin(orbit * 0.7) * 0.5, Math.sin(t * 0.9) * 0.2, 0));
+  cam.lookAt(look);
+}
+
+function updateArenaCamera(dt) {
   const me = avatars.get(myId) || avatars.get('local');
   const p = me?.g.position ?? lookAt;
   lookAt.lerp(p, 1 - Math.pow(0.001, dt));
@@ -251,26 +329,49 @@ function syncAvatars(players, dt) {
   });
 }
 
+function updateTransition(dt) {
+  if (!trans) return 0;
+  trans.t += dt;
+  if (trans.phase === 'out') {
+    if (trans.t >= TRANS_DUR) {
+      finishTransition();
+      trans.phase = 'in';
+      trans.t = 0;
+    }
+    return Math.min(1, trans.t / TRANS_DUR);
+  }
+  if (trans.t >= TRANS_DUR) {
+    trans = null;
+    return 0;
+  }
+  return 1 - trans.t / TRANS_DUR;
+}
+
 const clock = new THREE.Clock();
 R.setAnimationLoop(() => {
   const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+  const fade = updateTransition(dt);
 
   if (bannerT > 0) {
     bannerT -= dt;
     if (bannerT <= 0) $('banner').classList.remove('show');
   }
 
+  tickLobbyFloat(lobby.floaters, t);
+
   if (mode === 'offline' && offline) {
     if (offline.phase === 'countdown' && offline.countdown !== cdShown && offline.countdown > 0) {
       cdShown = offline.countdown;
-      showBanner(String(cdShown));
       phase = 'countdown';
+      onMatchApproach();
+      showBanner(String(cdShown));
     }
     if (offline.phase === 'play') {
       if (phase !== 'play') {
         phase = 'play';
+        onMatchPlaying();
         showBanner('START!');
-        $('lobby').classList.remove('show');
       }
       const mv = readMove();
       offline.input.x = mv.x;
@@ -285,9 +386,9 @@ R.setAnimationLoop(() => {
     alive = st.filter(p => p.alive).length;
     myDeaths = st.find(p => p.id === 'local')?.deaths ?? 0;
     updateHud();
-    syncAvatars(st, dt);
+    if (view === 'arena') syncAvatars(st, dt);
   } else if (mode === 'online') {
-    if (phase === 'play') {
+    if (phase === 'play' && view === 'arena') {
       inputAcc += dt;
       if (inputAcc >= 0.05) {
         inputAcc = 0;
@@ -296,17 +397,14 @@ R.setAnimationLoop(() => {
         pushPulse = false;
       }
     }
-    if (lastState) syncAvatars(lastState, dt);
+    if (lastState && view === 'arena') syncAvatars(lastState, dt);
     updateHud();
   }
 
-  if ((phase === 'lobby' || phase === 'connecting') && mode !== 'offline') {
-    const t = clock.elapsedTime;
-    syncAvatars([{ id: myId, x: Math.sin(t) * 2, z: Math.cos(t) * 2, vx: 0, vz: 0, deaths: 0, alive: true, yaw: t }], dt);
-  }
+  if (view === 'lobby') updateLobbyCamera(t, dt);
+  else updateArenaCamera(dt);
 
-  updateCamera(dt);
-  pipe.render(scene, cam, 'ps1b', 0);
+  pipe.render(currentScene(), cam, 'ps1b', fade);
 });
 
 updateHud();

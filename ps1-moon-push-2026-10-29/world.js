@@ -15,20 +15,16 @@ const flagR = colTex('#b23a2e', 0.12);
 export function buildArena(scene) {
   const solids = [];
   const g = new THREE.Group();
+  g.name = 'arena';
   scene.add(g);
 
-  // starfield
+  // starfield (subtle — arena is on the surface)
   const stars = new THREE.Points(
     new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(
-      Array.from({ length: 800 }, () => [(Math.random() - 0.5) * 400, 20 + Math.random() * 180, (Math.random() - 0.5) * 400]).flat(), 3)),
-    new THREE.PointsMaterial({ color: 0xffffff, size: 0.35, sizeAttenuation: true, transparent: true, opacity: 0.85 }),
+      Array.from({ length: 400 }, () => [(Math.random() - 0.5) * 400, 40 + Math.random() * 120, (Math.random() - 0.5) * 400]).flat(), 3)),
+    new THREE.PointsMaterial({ color: 0xffffff, size: 0.28, sizeAttenuation: true, transparent: true, opacity: 0.55 }),
   );
   scene.add(stars);
-
-  // distant moon sphere (backdrop)
-  const farMoon = new THREE.Mesh(new THREE.SphereGeometry(8, 12, 10), M(regolith, [1, 1]));
-  farMoon.position.set(-38, 42, -55);
-  g.add(farMoon);
 
   // landing disk — low poly with craters
   const seg = 32, rings = 8;
@@ -84,6 +80,58 @@ export function buildArena(scene) {
   computeBounce(lights, solids);
 
   return { group: g, solids, disk };
+}
+
+/** Matchmaking scene: astronauts float in space; destination moon looms ahead (not the arena yet). */
+export function buildLobbySpace(scene) {
+  const g = new THREE.Group();
+  g.name = 'lobbySpace';
+  scene.add(g);
+
+  const stars = new THREE.Points(
+    new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(
+      Array.from({ length: 1200 }, () => [(Math.random() - 0.5) * 500, (Math.random() - 0.5) * 280, (Math.random() - 0.5) * 500]).flat(), 3)),
+    new THREE.PointsMaterial({ color: 0xffffff, size: 0.45, sizeAttenuation: true, transparent: true, opacity: 0.9 }),
+  );
+  scene.add(stars);
+
+  const moon = new THREE.Mesh(new THREE.SphereGeometry(9, 14, 12), M(regolith, [2, 2]));
+  moon.position.set(0, -6, -38);
+  moon.scale.setScalar(2.2);
+  g.add(moon);
+
+  const floaters = [];
+  for (let i = 0; i < 3; i++) {
+    const astro = makeAstronaut(i);
+    const base = new THREE.Vector3(Math.cos(i * 2.09) * 2.4, 0.8 + i * 0.15, Math.sin(i * 2.09) * 1.8);
+    astro.position.copy(base);
+    g.add(astro);
+    floaters.push({ g: astro, base, ph: i * 2.1, oy: i * 0.9 });
+  }
+
+  U.uMoonDir.value.set(0.2, 0.5, -0.85).normalize();
+  U.uMoonC.value.set(0.12, 0.14, 0.22);
+  U.uAmb.value.set(0.025, 0.028, 0.04);
+  U.uFogD.value = 0.012;
+  U.uLP.value[0].set(-4, 6, 8);
+  U.uLC.value[0].set(1.4, 1.35, 1.2);
+  U.uLP.value[1].set(6, 2, -6);
+  U.uLC.value[1].set(0.25, 0.35, 0.9);
+  U.uNV.value = 0;
+
+  return { group: g, floaters, moon };
+}
+
+export function tickLobbyFloat(floaters, t) {
+  for (const f of floaters) {
+    const bob = Math.sin(t * 1.05 + f.ph) * 0.42 + Math.sin(t * 2.05 + f.oy) * 0.14;
+    f.g.position.y = f.base.y + bob;
+    f.g.position.x = f.base.x + Math.sin(t * 0.35 + f.ph) * 0.22;
+    f.g.position.z = f.base.z + Math.cos(t * 0.28 + f.oy) * 0.12;
+    f.g.rotation.y = t * 0.12 + f.ph;
+    f.g.rotation.x = Math.sin(t * 0.65 + f.ph) * 0.12;
+    f.g.rotation.z = Math.sin(t * 0.9 + f.oy) * 0.1;
+  }
 }
 
 const PAL = [0xc4a882, 0x88a8c4, 0xa8c488, 0xc488a8, 0xc4c088];
