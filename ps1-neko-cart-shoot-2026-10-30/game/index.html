@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <script>
+    (function () {
+      var p = location.pathname;
+      if (/\.html$/i.test(p)) p = p.replace(/[^/]+$/, '');
+      else if (!p.endsWith('/')) p = p + '/';
+      var b = document.createElement('base'); b.href = p; document.head.appendChild(b);
+    })();
+  </script>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <link rel="icon" href="data:,">
+  <title>PS1 ねこカート・シューター</title>
+  <style>
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+    html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:system-ui,"Hiragino Sans","Noto Sans JP",sans-serif;touch-action:none;cursor:none}
+    canvas{display:block;width:100%;height:100%;touch-action:none}
+    button{cursor:pointer;font-family:inherit}
+    .ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,#3a1d48ee,#0c0710f4);color:#fbeaf6;z-index:20;gap:14px;cursor:default;text-align:center;padding:20px}
+    .ov h1{margin:0;font-size:clamp(24px,6vw,40px);letter-spacing:.08em;color:#ffd6ef;text-shadow:3px 3px 0 #6a1d58,0 0 18px #ff8ad8}
+    .ov .sub{margin:0;font-size:12px;letter-spacing:.3em;color:#ffcf6a}
+    .ov p{margin:0;opacity:.85;font-size:14px;max-width:380px;line-height:1.7}
+    .big{font-size:18px;padding:12px 30px;border-radius:999px;border:2px solid #ffb3e3;background:#a2357f;color:#fff;font-weight:800;letter-spacing:.06em;box-shadow:0 4px 0 #5a1546}
+    .small{font-size:14px;padding:8px 18px;border-radius:999px;border:1px solid #9ad;background:#1d2a3a;color:#def}
+    .blink{animation:bl 1s steps(2) infinite}@keyframes bl{50%{opacity:.25}}
+    #hud{position:fixed;inset:0;pointer-events:none;z-index:5;display:none}
+    #stats{position:absolute;top:10px;left:12px;color:#fff;text-shadow:2px 2px 0 #000;font-size:15px;line-height:1.5;font-weight:800;letter-spacing:.05em}
+    #hearts{color:#ff5aa8;font-size:18px;letter-spacing:2px}
+    #combo{color:#ffd65a;font-size:13px}
+    #prog{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:min(44vw,300px);text-align:center;color:#fff;font-size:11px;font-weight:800;text-shadow:1px 1px 0 #000;letter-spacing:.1em}
+    #progBar{height:6px;border:1px solid #fff9;background:#0008;margin-top:3px}
+    #progFill{height:100%;width:0;background:linear-gradient(90deg,#ff7ac8,#ffd65a)}
+    #ammo{position:absolute;right:16px;bottom:78px;color:#ffd65a;font-size:20px;letter-spacing:3px;text-shadow:2px 2px 0 #000;font-weight:900}
+    #reloadHint{position:absolute;left:50%;top:62%;transform:translateX(-50%);color:#ff4a4a;font-weight:900;font-size:22px;letter-spacing:.2em;text-shadow:2px 2px 0 #000;display:none}
+    #btnReload{position:absolute;right:14px;bottom:18px;pointer-events:auto;padding:11px 18px;border-radius:12px;border:2px solid #ffd65a;background:#3a2a10cc;color:#ffe9a8;font-size:15px;font-weight:900;letter-spacing:.06em}
+    #topBtns{position:fixed;top:8px;right:10px;z-index:22;display:flex;gap:6px}
+    #topBtns button{border:none;background:#0008;color:#fff;font-size:18px;border-radius:8px;padding:4px 8px}
+    #gyroBtn.on{background:#a2357fcc}
+    #cross{position:fixed;left:0;top:0;width:56px;height:56px;margin:-28px 0 0 -28px;z-index:12;pointer-events:none;display:none}
+    #cross .r{position:absolute;inset:6px;border:3px solid #ff3b3b;border-radius:50%;box-shadow:0 0 0 2px #0008,inset 0 0 0 2px #0008}
+    #cross .h,#cross .v{position:absolute;background:#ff3b3b;box-shadow:0 0 0 1px #000a}
+    #cross .h{left:0;right:0;top:26px;height:4px}#cross .v{top:0;bottom:0;left:26px;width:4px}
+    #cross .d{position:absolute;left:24px;top:24px;width:8px;height:8px;background:#fff;border-radius:50%}
+    #cross.lock .r{border-color:#ffe23b;transform:scale(.8)}#cross.lock .h,#cross.lock .v{background:#ffe23b}
+    #cross.kick .r{transform:scale(1.3)}
+    #rings{position:fixed;inset:0;pointer-events:none;z-index:7}
+    .ring{position:absolute;border:3px solid #ffde3b;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 2px #000a;display:none}
+    .ring.hot{border-color:#ff2b2b}
+    .ring::after{content:"!";position:absolute;left:50%;top:-22px;transform:translateX(-50%);color:inherit;font-weight:900;color:#ff3b3b;text-shadow:1px 1px 0 #000;font-size:16px}
+    .pop{position:fixed;z-index:9;pointer-events:none;color:#fff;font-weight:900;font-size:16px;text-shadow:2px 2px 0 #000;transform:translate(-50%,-50%);animation:up .8s ease-out forwards}
+    .pop.hs{color:#ff4a4a;font-size:20px}.pop.bonus{color:#ffd65a}
+    @keyframes up{to{transform:translate(-50%,-160%);opacity:0}}
+    #banner{position:fixed;left:0;right:0;top:30%;text-align:center;z-index:9;pointer-events:none;color:#ffd6ef;font-weight:900;font-size:clamp(20px,5vw,34px);letter-spacing:.12em;text-shadow:3px 3px 0 #5a1546,0 0 14px #ff8ad8;opacity:0;transition:opacity .4s}
+    #banner small{display:block;font-size:.45em;color:#ffd65a;letter-spacing:.4em}
+    #banner.show{opacity:1}
+    #flash{position:fixed;inset:0;pointer-events:none;z-index:6;opacity:0;box-shadow:inset 0 0 120px 40px #ff0030;transition:opacity .4s}
+    #muzzle{position:fixed;inset:0;pointer-events:none;z-index:6;background:#fff;opacity:0;transition:opacity .08s}
+    #bossBar{position:absolute;left:50%;top:44px;transform:translateX(-50%);width:min(60vw,360px);display:none;color:#ffb070;font-size:11px;font-weight:900;text-align:center;text-shadow:1px 1px 0 #000;letter-spacing:.1em}
+    #bossBar>div{height:8px;border:1px solid #fff;background:#0009;margin-top:2px}#bossFill{height:100%;width:100%;background:linear-gradient(90deg,#ff6a1a,#ffd65a)}
+    #toastStack{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:25;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;max-width:92vw}
+    .toast{background:#1a0f22e8;color:#ffe8f6;padding:8px 14px;border-radius:10px;font-size:13px;opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s;border:1px solid #b25a98}
+    .toast.show{opacity:1;transform:none}
+    #result table{margin:4px auto;font-size:15px;border-collapse:collapse}#result td{padding:3px 12px}#result td:last-child{text-align:right;font-weight:800;color:#ffd65a}
+    #rank{font-size:64px;font-weight:900;color:#ffd65a;text-shadow:4px 4px 0 #6a1d58;line-height:1}
+  </style>
+</head>
+<body>
+  <div id="title" class="ov">
+    <div class="sub">PS1 · ARCADE GUN · ON-RAILS</div>
+    <h1>ねこカート<br>シューター</h1>
+    <p>カートは自動で進む。キミは撃つだけ！<br>いたずら猫・おばけ猫を撃退して、月夜のかぼちゃ大王を倒そう。<br>赤い輪が縮みきる前に撃て。投げてくる魚や毛糸も撃ち落とせる。</p>
+    <p style="font-size:12px;opacity:.7">📱 タップ＝その場所を撃つ／ドラッグ照準／ジャイロ照準　🖱 マウス照準・クリック射撃・右クリック or R リロード</p>
+    <button type="button" id="btnGyroTitle" class="small">📱 ジャイロ照準を使う</button>
+    <button type="button" id="btnStart" class="big blink">INSERT COIN ▶ START</button>
+  </div>
+  <div id="result" class="ov" style="display:none">
+    <div class="sub" id="resSub">STAGE CLEAR</div>
+    <div id="rank">S</div>
+    <table id="resTable"></table>
+    <button type="button" id="btnRetry" class="big">もう一回 ▶</button>
+  </div>
+  <div id="topBtns"><button type="button" id="gyroBtn" aria-label="ジャイロ">📱</button><button type="button" id="centerBtn" aria-label="照準リセット" style="display:none">🎯</button><button type="button" id="muteBtn" aria-label="ミュート">🔊</button></div>
+  <div id="hud">
+    <div id="stats"><span id="hearts">♥♥♥♥♥</span><br>SCORE <span id="score">0</span><br><span id="combo"></span></div>
+    <div id="prog"><span id="secName">SECTION 1</span><div id="progBar"><div id="progFill"></div></div></div>
+    <div id="bossBar">ジャック・オ・ニャンタン<div><div id="bossFill"></div></div></div>
+    <div id="ammo">●●●●●●</div>
+    <div id="reloadHint" class="blink">RELOAD!</div>
+    <button type="button" id="btnReload">⟳ リロード</button>
+  </div>
+  <div id="rings"></div>
+  <div id="cross"><div class="r"></div><div class="h"></div><div class="v"></div><div class="d"></div></div>
+  <div id="banner"></div>
+  <div id="flash"></div>
+  <div id="muzzle"></div>
+  <div id="toastStack"></div>
+  <script type="module">
+    (function () {
+      var p = location.pathname;
+      if (/\.html$/i.test(p)) p = p.slice(0, p.lastIndexOf('/') + 1);
+      else if (!p.endsWith('/')) p = p + '/';
+      import(new URL('main.js', location.origin + p).href);
+    })();
+  </script>
+</body>
+</html>

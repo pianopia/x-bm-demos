@@ -1,0 +1,2 @@
+# Exact path only (Cloudflare Pages). /game/index.html needs no rule.
+/game  /game/index.html  301

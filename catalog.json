@@ -4,6 +4,21 @@
   "github": "https://github.com/pianopia/x-bm-demos",
   "demos": [
     {
+      "id": "ps1-neko-cart-shoot-2026-10-30",
+      "title": "PS1 ねこカート・シューター (on-rails gun)",
+      "date": "2026-10-30",
+      "path": "./ps1-neko-cart-shoot-2026-10-30/",
+      "tags": [
+        "three.js",
+        "PS1",
+        "8bit",
+        "game",
+        "on-rails"
+      ],
+      "blurb": "ねこねこスナップ／ハウス・オブ・ザ・デッド風のアーケード・ガンシューティング。カートは自動走行、照準と射撃だけ（スティックなし）。タップ射撃・ドラッグ照準・ジャイロ照準対応、4セクション＋かぼちゃ猫ボス。",
+      "source": ""
+    },
+    {
       "id": "ps1-moon-push-2026-10-29",
       "title": "PS1 Moon Push (online sumo)",
       "date": "2026-10-29",
