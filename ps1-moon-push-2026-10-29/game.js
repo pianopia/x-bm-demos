@@ -75,6 +75,10 @@ function goToArena() {
 function finishTransition() {
   view = 'arena';
   clearArenaAvatars();
+  camYaw = Math.PI;
+  localFace = Math.PI;
+  lastMove.x = 0;
+  lastMove.z = 1;
 }
 
 function currentScene() {
@@ -88,35 +92,47 @@ function setPlayControls(on) {
 const keys = new Set();
 const joy = { x: 0, y: 0 };
 let pushPulse = false;
-const camFwd = new V3();
-const camRight = new V3();
-const worldUp = new V3(0, 1, 0);
 
-/** Screen/stick input → world XZ using current camera forward on the arena plane. */
+/** Independent camera yaw (廃墟の灯火 / ps1-tps-explore-rpg と同じ — mesh.rotation に連動しない). */
+let camYaw = Math.PI;
+const camPitch = 0.34;
+const camDist = 10.5;
+let localFace = Math.PI;
+const lastMove = { x: 0, z: 1 };
+const _fwd = new V3();
+const _right = new V3();
+const _dir = new V3();
+
+/** Camera-relative move → world XZ (same basis as ps1-tps-explore-rpg game.js). */
 function readMoveWorld() {
-  let forward = 0;
-  let right = 0;
-  if (keys.has('KeyW') || keys.has('ArrowUp')) forward += 1;
-  if (keys.has('KeyS') || keys.has('ArrowDown')) forward -= 1;
-  if (keys.has('KeyD') || keys.has('ArrowRight')) right += 1;
-  if (keys.has('KeyA') || keys.has('ArrowLeft')) right -= 1;
-  forward -= joy.y;
-  right += joy.x;
-  const il = Math.hypot(right, forward);
-  if (il < 0.08) return { x: 0, z: 0 };
-  if (il > 1) { right /= il; forward /= il; }
+  let ix = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0) + joy.x;
+  let iy = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0) + joy.y;
+  _fwd.set(-Math.sin(camYaw), 0, -Math.cos(camYaw));
+  _right.set(Math.cos(camYaw), 0, -Math.sin(camYaw));
+  _dir.copy(_fwd).multiplyScalar(iy).add(_right.clone().multiplyScalar(ix));
+  const dl = _dir.length();
+  if (dl < 0.05) return { x: 0, z: 0 };
+  if (dl > 1) _dir.divideScalar(dl);
+  return { x: _dir.x, z: _dir.z };
+}
 
-  cam.getWorldDirection(camFwd);
-  camFwd.y = 0;
-  if (camFwd.lengthSq() < 1e-8) camFwd.set(0, 0, -1);
-  else camFwd.normalize();
-  camRight.crossVectors(camFwd, worldUp).normalize();
-
-  let wx = camRight.x * right + camFwd.x * forward;
-  let wz = camRight.z * right + camFwd.z * forward;
-  const wl = Math.hypot(wx, wz);
-  if (wl > 1) { wx /= wl; wz /= wl; }
-  return { x: wx, z: wz };
+function updateLocalFace(avatar, mv, dt) {
+  const dl = Math.hypot(mv.x, mv.z);
+  if (dl > 0.05) {
+    const target = Math.atan2(mv.x, mv.z);
+    let d = target - localFace;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    localFace += d * Math.min(1, dt * 12);
+    lastMove.x = mv.x / dl;
+    lastMove.z = mv.z / dl;
+  } else {
+    _fwd.set(-Math.sin(camYaw), 0, -Math.cos(camYaw));
+    const target = Math.atan2(_fwd.x, _fwd.z);
+    let d = target - localFace;
+    d = Math.atan2(Math.sin(d), Math.cos(d));
+    localFace += d * Math.min(1, dt * 4);
+  }
+  avatar.g.rotation.y = localFace;
 }
 
 addEventListener('keydown', e => {
@@ -139,7 +155,7 @@ function joyMove(cx, cy) {
   const m = Math.min(50, Math.hypot(dx, dy));
   const a = Math.atan2(dy, dx);
   joy.x = (Math.cos(a) * m) / 50;
-  joy.y = (Math.sin(a) * m) / 50;
+  joy.y = -(Math.sin(a) * m) / 50;
   joyK.style.transform = `translate(${Math.cos(a) * m}px,${Math.sin(a) * m}px)`;
 }
 joyEl.addEventListener('pointerdown', e => {
@@ -388,10 +404,10 @@ function beginPlay() {
 $('playBtn').onclick = beginPlay;
 $('retryBtn').onclick = () => { $('result').classList.remove('show'); location.reload(); };
 
-const camOff = new V3(0, 5.5, 10);
 const lookAt = new V3();
 const lobbyCamBase = new V3(0, 2.2, 11);
 const lobbyLook = new V3(0, 1.2, -6);
+const _back = new V3();
 
 function updateLobbyCamera(t, dt) {
   const orbit = t * 0.18;
@@ -408,13 +424,14 @@ function updateArenaCamera(dt) {
   const me = avatars.get(myId) || avatars.get('local');
   const p = me?.g.position ?? lookAt;
   lookAt.lerp(p, 1 - Math.pow(0.001, dt));
-  const yaw = me?.g.rotation.y ?? 0;
-  const off = camOff.clone().applyAxisAngle(new V3(0, 1, 0), yaw);
-  cam.position.lerp(lookAt.clone().add(off), 1 - Math.pow(0.0008, dt));
-  cam.lookAt(lookAt.x, lookAt.y + 1.2, lookAt.z);
+  const cp = Math.cos(camPitch);
+  _back.set(Math.sin(camYaw) * cp, Math.sin(camPitch), Math.cos(camYaw) * cp);
+  const tgt = lookAt.clone().add(new V3(0, 1.2, 0));
+  cam.position.lerp(tgt.clone().addScaledVector(_back, camDist), 1 - Math.pow(0.0008, dt));
+  cam.lookAt(tgt.x, tgt.y, tgt.z);
 }
 
-function syncAvatars(players, dt) {
+function syncAvatars(players, dt, localMv = null) {
   const ids = new Set(players.map(p => p.id));
   for (const id of avatars.keys()) if (!ids.has(id)) removeAvatar(id);
   players.forEach((p, i) => {
@@ -422,8 +439,17 @@ function syncAvatars(players, dt) {
     a.target.set(p.x, 0, p.z);
     a.smooth.lerp(a.target, 1 - Math.pow(0.00001, dt));
     a.g.position.copy(a.smooth);
-    if (Math.abs(p.vx) + Math.abs(p.vz) > 0.05) a.g.rotation.y = Math.atan2(p.vx, p.vz);
-    else if (p.yaw) a.g.rotation.y = p.yaw;
+    if (p.id === myId && localMv) {
+      updateLocalFace(a, localMv, dt);
+    } else {
+      let target = p.yaw;
+      if (Math.abs(p.vx) + Math.abs(p.vz) > 0.05) target = Math.atan2(p.vx, p.vz);
+      if (target != null && !Number.isNaN(target)) {
+        let d = target - a.g.rotation.y;
+        d = Math.atan2(Math.sin(d), Math.cos(d));
+        a.g.rotation.y += d * Math.min(1, dt * 10);
+      }
+    }
     a.g.visible = p.alive !== false;
   });
 }
@@ -478,6 +504,10 @@ R.setAnimationLoop(() => {
       const mv = readMoveWorld();
       offline.input.x = mv.x;
       offline.input.z = mv.z;
+      if (pushPulse && mv.x * mv.x + mv.z * mv.z < 0.01) {
+        offline.input.x = lastMove.x;
+        offline.input.z = lastMove.z;
+      }
       if (pushPulse) aud.sfx('push');
       offline.input.push = pushPulse;
       pushPulse = false;
@@ -489,7 +519,10 @@ R.setAnimationLoop(() => {
     alive = st.filter(p => p.alive).length;
     myDeaths = st.find(p => p.id === 'local')?.deaths ?? 0;
     updateHud();
-    if (view === 'arena') syncAvatars(st, dt);
+    if (view === 'arena') {
+      const mv = phase === 'play' ? readMoveWorld() : null;
+      syncAvatars(st, dt, mv);
+    }
   } else if (mode === 'online') {
     if ((phase === 'lobby' || phase === 'connecting') && !botFillTriggered) {
       lobbyWait += dt;
@@ -506,7 +539,10 @@ R.setAnimationLoop(() => {
         pushPulse = false;
       }
     }
-    if (lastState && view === 'arena') syncAvatars(lastState, dt);
+    if (lastState && view === 'arena') {
+      const mv = phase === 'play' ? readMoveWorld() : null;
+      syncAvatars(lastState, dt, mv);
+    }
     updateHud();
   }
 
