@@ -36,8 +36,8 @@ function clampSpeed(p) {
   }
 }
 
-/** @returns {boolean} hit at least one target */
-function executePush(attacker, players, dirX, dirZ) {
+/** @returns {boolean} hit at least one target (mirrors EDEN2 tryDirectedPush). */
+function tryDirectedPush(attacker, players, dirX, dirZ) {
   const len = Math.hypot(dirX, dirZ);
   if (len < 1e-4) {
     dirX = Math.sin(attacker.yaw);
@@ -156,7 +156,7 @@ export class OfflineRoom {
     p.vz += inp.z * MOVE.accel * dt;
     if (inp.push && p.pushCd <= 0) {
       p.pushCd = PUSH.cooldown;
-      this.lastPushHit = executePush(p, this.players, inp.x, inp.z);
+      this.lastPushHit = tryDirectedPush(p, this.players, inp.x, inp.z);
     }
     if (Math.abs(inp.x) + Math.abs(inp.z) > 0.05) p.yaw = Math.atan2(inp.x, inp.z);
     clampSpeed(p);
