@@ -11,7 +11,8 @@ const FIRE_TAP_MS = 220;
 /** @type {'title'|'play'} */
 let phase = 'title';
 let muted = localStorage.getItem('fps-mute') === '1';
-let renderMode = localStorage.getItem('fps-render') || 'ps1b';
+let renderMode = localStorage.getItem('fps-render');
+if (!['ps1b', 'ps1', 'clean'].includes(renderMode)) renderMode = 'ps1b';
 
 const player = {
   hp: 100,
@@ -83,7 +84,7 @@ const lights = [
 function syncLights() {
   lights.forEach((L, i) => {
     U.uLP.value[i].copy(L.pos);
-    U.uLC.value[i].copy(L.col);
+    U.uLC.value[i].set(L.col.r, L.col.g, L.col.b); // Color has r/g/b, not x/y/z
   });
   computeBounce(lights, solids);
 }
@@ -201,6 +202,13 @@ function startReload() {
 
 function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
 
+function syncCam() {
+  cam.position.copy(player.pos);
+  cam.rotation.order = 'YXZ';
+  cam.rotation.y = player.yaw;
+  cam.rotation.x = player.pitch;
+}
+
 function updatePlayer(dt) {
   if (phase !== 'play') return;
   const cy = Math.cos(player.yaw), sy = Math.sin(player.yaw);
@@ -217,10 +225,6 @@ function updatePlayer(dt) {
   nz = clamp(nz, -D / 2 + pad, D / 2 - pad);
   player.pos.x = nx;
   player.pos.z = nz;
-  cam.position.copy(player.pos);
-  cam.rotation.order = 'YXZ';
-  cam.rotation.y = player.yaw;
-  cam.rotation.x = player.pitch;
 
   if (player.reloading) {
     player.reloadT -= dt;
@@ -391,7 +395,7 @@ $('btnStart').onclick = () => {
   player.reserve = 48;
   player.reloading = false;
   player.pos.set(0, 1.6, 6);
-  player.yaw = Math.PI;
+  player.yaw = 0;
   player.pitch = 0;
   enemies.forEach(e => { if (e.mesh) S.remove(e.mesh); });
   enemies.length = 0;
@@ -431,9 +435,11 @@ function loop() {
   const dt = Math.min(clk.getDelta(), 0.05);
   pollKeys(dt);
   updatePlayer(dt);
+  syncCam();
   updateHud();
   pipeline.render(S, cam, renderMode, phase === 'title' ? 0.35 : 0);
   requestAnimationFrame(loop);
 }
 setPhase('title');
 loop();
+if (params.get('autostart') === '1') $('btnStart').click();

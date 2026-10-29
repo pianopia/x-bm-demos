@@ -7,7 +7,7 @@ export const U = {
   uRes: { value: new THREE.Vector2(320, 240) },
   uLP: { value: Array.from({ length: NL }, v3) }, uLC: { value: Array.from({ length: NL }, v3) },
   uVP: { value: Array.from({ length: NV }, v3) }, uVN: { value: Array.from({ length: NV }, v3) }, uVC: { value: Array.from({ length: NV }, v3) },
-  uNV: { value: 0 }, uAmb: { value: new THREE.Vector3(.04, .042, .05) },
+  uNV: { value: 0 }, uAmb: { value: new THREE.Vector3(.07, .07, .08) },
   uMoonDir: { value: new THREE.Vector3(-.4, .8, .35).normalize() }, uMoonC: { value: new THREE.Vector3(.08, .09, .12) }, uOutZ: { value: 21.3 },
   uFogC: { value: new THREE.Vector3(.06, .055, .07) }, uFogD: { value: .08 },
 };
