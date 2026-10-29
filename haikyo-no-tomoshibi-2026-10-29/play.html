@@ -6,11 +6,14 @@ canvas{display:block;touch-action:none;image-rendering:pixelated}
 .px{font-family:"DotGothic16","Hiragino Kaku Gothic ProN",monospace;letter-spacing:.04em}
 a{color:#9cc8ff}
 .panel{background:#0b0d12e8;border:2px solid #6b5a3a;box-shadow:0 0 0 2px #000,inset 0 0 0 1px #2a2418;border-radius:4px}
-#hud{position:fixed;left:10px;top:10px;pointer-events:none;max-width:min(420px,calc(100vw - 20px))}
+#hud{position:fixed;left:10px;top:52px;pointer-events:none;max-width:min(420px,calc(100vw - 20px))}
 #hp{font-size:20px;letter-spacing:2px;text-shadow:0 2px 0 #000}
 #obj{margin-top:6px;padding:6px 10px;font-size:14px}
 #obj small{display:block;color:#c9a54a;font-size:11px}
-#topR{position:fixed;right:10px;top:10px;display:flex;gap:6px}
+#topR{position:fixed;right:10px;top:10px;display:flex;gap:6px;align-items:center}
+#topAudio{position:fixed;left:10px;top:10px;display:flex;gap:6px;align-items:center;padding:4px 8px}
+#topAudio #menuBtn{font-size:13px;padding:4px 8px;margin:0}
+body:not(.rn-shell) #menuBtn{display:none}
 button{font:inherit;color:#ece4d2;background:#231d14;border:2px solid #6b5a3a;border-radius:4px;padding:4px 10px;cursor:pointer}
 button:hover,button.sel{background:#4a3a20;border-color:#d8b35a}
 #prompt{position:fixed;left:50%;bottom:30%;transform:translateX(-50%);padding:5px 14px;display:none;pointer-events:none;white-space:nowrap}
@@ -63,16 +66,13 @@ body.debug-on #tbtn .debug-only{display:block!important}
 .debug-only{display:none!important}
 #debugCorner{position:fixed;left:0;bottom:0;width:48px;height:48px;opacity:0;z-index:5;touch-action:none}
 #debugPanel .box{max-width:360px}
-body:not(.rn-shell) #menuBtn{display:none}
-body.rn-shell .rn-only-hint{display:block}
-#cross{position:fixed;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:#fff8;pointer-events:none;display:none}
-#topR{align-items:center}
 #sndBtn.off{color:#8a7f6c;border-color:#3a3224}
 #vol{width:70px;accent-color:#d8b35a}
 @media(max-width:640px){#vol,.hideS{display:none}}
 </style></head><body>
 <div id="hud"><div id="hp"></div><div id="obj" class="panel"><small>目的</small><span id="objText"></span></div></div>
-<div id="topR"><button id="menuBtn" title="メニュー（Esc）">メニュー</button><button id="sndBtn" title="BGM/効果音 ON/OFF（M）">♪ ON</button><input id="vol" type="range" min="0" max="100" title="音量"><button id="modeBtn" class="debug-only" title="P キー（デバッグ）">PS1＋バウンス</button><button id="invBtn" title="I / Tab">持ち物</button></div>
+<div id="topAudio" class="top-audio panel"><button id="menuBtn" title="メニュー（Esc）">メニュー</button><button id="sndBtn" title="BGM/効果音 ON/OFF（M）">♪ ON</button><input id="vol" type="range" min="0" max="100" title="音量"></div>
+<div id="topR"><button id="modeBtn" class="debug-only" title="P キー（デバッグ）">PS1＋バウンス</button><button id="invBtn" title="I / Tab">持ち物</button></div>
 <div id="prompt" class="panel"></div>
 <div id="toasts"></div>
 <div id="flaglog"></div>
