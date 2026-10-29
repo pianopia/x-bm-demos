@@ -1,319 +1,334 @@
 {
- "project": "x-bm-demos",
- "pages": "https://x-bm-demos.pages.dev/",
- "github": "https://github.com/pianopia/x-bm-demos",
- "demos": [
-  {
-   "id": "haikyo-no-tomoshibi-2026-10-29",
-   "title": "廃墟の灯火 (Expo web-play)",
-   "date": "2026-10-29",
-   "path": "./haikyo-no-tomoshibi-2026-10-29/",
-   "tags": [
-    "BELENUS",
-    "PS1",
-    "RPG",
-    "Expo",
-    "WebView",
-    "game"
-   ],
-   "blurb": "PS1風長編RPGのブラウザ試遊版（Expoアプリと同梱ゲームパック）。タイトル→探索、東庭コンテンツ拡張、メニューでタイトル戻り。Origin: pianopia/haikyo-no-tomoshibi。",
-   "source": "https://cursor.com/codebase/pianopia/haikyo-no-tomoshibi"
-  },
-  {
-   "id": "chipdaw-8bit-2026-10-29",
-   "title": "CHIP DAW 8bit",
-   "date": "2026-10-29",
-   "path": "./chipdaw-8bit-2026-10-29/",
-   "tags": [
-    "chiptune",
-    "Web Audio",
-    "DAW",
-    "AI",
-    "tool"
-   ],
-   "blurb": "AIネイティブ×手編集の軽量8bit DAW。プロンプト→ローカル手続き生成で曲/効果音、4chピアノロール・パターン/オーダー・SFXサンドボックス・JSON/WAV書出。廃墟の灯火のBGMも開いて編集できる。",
-   "source": ""
-  },
-  {
-   "id": "motionbricks-steer-toy-2026-10-29",
-   "title": "MotionBricks Steer Toy",
-   "date": "2026-10-29",
-   "path": "./motionbricks-steer-toy-2026-10-29/",
-   "tags": [
-    "BELENUS",
-    "three.js",
-    "motion",
-    "AI"
-   ],
-   "blurb": "NVIDIA MotionBricks / @victormustar ブラウザデモ着想。操舵・歩行スタイル・障害物回避の感触を触るトイ（本物の重み／ONNXではない）。",
-   "source": "https://x.com/victormustar/status/2115531118292131887"
-  },
-  {
-   "id": "ps1-tps-explore-rpg-2026-10-29",
-   "title": "PS1 TPS Explore RPG",
-   "date": "2026-10-29",
-   "path": "./ps1-tps-explore-rpg-2026-10-29/",
-   "tags": [
-    "BELENUS",
-    "three.js",
-    "PS1",
-    "RPG",
-    "game",
-    "chiptune"
-   ],
-   "blurb": "@codetaur PS1風レンダ着想の続き。TPS探索RPGのミニループ（ギミック・イベントフラグ・インベントリ）。8bit BGM（探索/戦闘/夜明け）と効果音つき、♪でミュート。",
-   "source": "https://x.com/codetaur/status/2114482452798574633"
-  },
-  {
-   "id": "voronoi-fracture-toy-2026-10-29",
-   "title": "Voronoi Fracture Toy (three.js)",
-   "date": "2026-10-29",
-   "path": "./voronoi-fracture-toy-2026-10-29/",
-   "tags": [
-    "BELENUS",
-    "three.js",
-    "VFX",
-    "destruction"
-   ],
-   "blurb": "@AssetLove の無料 UE Fracture Tool 着想。クリック位置寄りにボロノイ分割→凸セルの破片が重力で飛ぶブラウザトイ（本物のUEツールではない）。"
-  },
-  {
-   "id": "ps1-radiance-lite-2026-10-29",
-   "title": "PS1 Radiance Lite (three.js)",
-   "date": "2026-10-29",
-   "path": "./ps1-radiance-lite-2026-10-29/",
-   "tags": [
-    "BELENUS",
-    "three.js",
-    "lookdev",
-    "GI"
-   ],
-   "blurb": "@codetaur の Radiance Cascades×PS1風レンダ着想。低解像度・頂点スナップ・アフィンUV・ディザ＋フェイク1バウンスGI（VPL）をクリーン表示とA/B比較するトイ。"
-  },
-  {
-   "id": "kit-village-stream-2026-10-29",
-   "title": "Kit Village Stream (three.js)",
-   "date": "2026-10-29",
-   "path": "./kit-village-stream-2026-10-29/",
-   "tags": [
-    "BELENUS",
-    "three.js",
-    "procedural",
-    "streaming"
-   ],
-   "blurb": "@sorenxet「build a kit, not a town」着想。部品キットから家10種前後を手続き生成し、視錐台チャンクで中世の村を流し込むthree.jsトイ。"
-  },
-  {
-   "id": "openpoi-flapi-spots-2026-10-29",
-   "title": "Flapi × OpenPOI すれちがいスポット",
-   "date": "2026-10-29",
-   "path": "./openpoi-flapi-spots-2026-10-29/",
-   "tags": [
-    "Flapi",
-    "map",
-    "OpenPOI",
-    "API"
-   ],
-   "blurb": "OpenPOI API（@naogify）着想。周辺の実在施設をキー不要APIで引き、名刺交換しやすそうなスポットを地図に並べるトイ（スコアは仮）。"
-  },
-  {
-   "id": "frustum-stream-2026-10-10",
-   "title": "Frustum Streaming toy",
-   "date": "2026-10-10",
-   "path": "./frustum-stream-2026-10-10/",
-   "tags": [
-    "BELENUS",
-    "open-world",
-    "streaming"
-   ],
-   "blurb": "Roblox Frustum Streaming着想。周囲均等ロード vs 視錐台だけ遠くまで、のチャンク数を比べる2Dトイ。"
-  },
-  {
-   "id": "caustic-volume-lite-2026-09-28",
-   "title": "Caustic volume lite (three.js)",
-   "date": "2026-09-28",
-   "path": "./caustic-volume-lite-2026-09-28/",
-   "tags": [
-    "BELENUS",
-    "three.js",
-    "lookdev",
-    "water"
-   ],
-   "blurb": "ScottieFox caustic-volume着想。ブラウザだけの疑似コースティクス＋水面。BELENUS向けlook-devトイ。"
-  },
-  {
-   "id": "tategaki-parchment-flip-2026-09-27",
-   "title": "縦書き羊皮紙ブックフリップ",
-   "date": "2026-09-27",
-   "path": "./tategaki-parchment-flip-2026-09-27/",
-   "tags": [
-    "tategaki",
-    "PWA",
-    "UX",
-    "book"
-   ],
-   "blurb": "縦書き＋羊皮紙テクスチャの紙めくりリーダー。ドラッグ途中解放でスナップバック。羅生門抜粋のPWA。"
-  },
-  {
-   "id": "uv-repack-2026-09-25",
-   "title": "UV repack + texel density",
-   "date": "2026-09-25",
-   "path": "./uv-repack-2026-09-25/",
-   "tags": [
-    "BELENUS",
-    "Blender",
-    "UV"
-   ],
-   "blurb": "Auto Unwrap 1.1.0着想。リパック時のテクセル密度保持をブラウザで感触だけ触るトイ（本物アドオンではない）。"
-  },
-  {
-   "id": "ai-referral-dash-2026-09-24",
-   "title": "AI referral dashboard (mock)",
-   "date": "2026-09-24",
-   "path": "./ai-referral-dash-2026-09-24/",
-   "tags": [
-    "Flapi",
-    "tategaki",
-    "Midnote",
-    "analytics"
-   ],
-   "blurb": "Open Analytics v0.8.0着想。ChatGPT/Claude等からの流入を製品別に眺める静的モック（実計測なし）。"
-  },
-  {
-   "id": "sss-peachfuzz-2026-09-23",
-   "title": "SSS + peach fuzz look-dev",
-   "date": "2026-09-23",
-   "path": "./sss-peachfuzz-2026-09-23/",
-   "tags": [
-    "BELENUS",
-    "three.js",
-    "lookdev"
-   ],
-   "blurb": "ブラウザのみの疑似SSS＋産毛リム＋屈折角膜。BELENUS向けlook-devトイ（本番SSSではない）。"
-  },
-  {
-   "id": "comment-motion-toy-2026-09-22",
-   "title": "Comment → Motion Toy",
-   "date": "2026-09-22",
-   "path": "./comment-motion-toy-2026-09-22/",
-   "tags": [
-    "BELENUS",
-    "UX",
-    "live"
-   ],
-   "blurb": "ARDY Mini着想。コメント文言→モーションの感触だけ触る静的トイ（本物モデルなし）。"
-  },
-  {
-   "id": "shader-stamp-card-2026-09-21",
-   "title": "Shader Stamp Card",
-   "date": "2026-09-21",
-   "path": "./shader-stamp-card-2026-09-21/",
-   "tags": [
-    "Flapi",
-    "WebGL",
-    "UI"
-   ],
-   "blurb": "店舗スタンプカードにシェーダー背景＋傾き＋押下。shadercn/インタラクティブカード着想の静的トイ。"
-  },
-  {
-   "id": "jev-flapi-lab-2026-09-19",
-   "title": "Jev-shaped lab (free mock) × Flapi",
-   "date": "2026-09-19",
-   "path": "./jev-flapi-lab-2026-09-19/",
-   "tags": [
-    "Flapi",
-    "Jev",
-    "System One"
-   ],
-   "blurb": "Noul/Choice/Score の応答形を無料の静的モックで触る。本物Jev/Workers AIは使わない。"
-  },
-  {
-   "id": "lens-trace-2026-09-18",
-   "title": "Lens Trace — anamorphic + diffusion",
-   "date": "2026-09-18",
-   "path": "./lens-trace-2026-09-18/",
-   "tags": [
-    "BELENUS",
-    "three.js",
-    "cinematic"
-   ],
-   "blurb": "FF寄りシネマのレンズ味を Web で先に触るトイ。"
-  },
-  {
-   "id": "stamp-pattern-2026-09-17",
-   "title": "Stamp Pattern Mixer",
-   "date": "2026-09-17",
-   "path": "./stamp-pattern-2026-09-17/",
-   "tags": [
-    "Flapi",
-    "SVG"
-   ],
-   "blurb": "店舗スタンプカードの背景柄ミキサー（ベース×重ね×色×密度）。"
-  },
-  {
-   "id": "vector-stamp-card",
-   "title": "Vector Stamp Card",
-   "date": "2026-09-16",
-   "path": "./vector-stamp-card/",
-   "tags": [
-    "Flapi",
-    "SVG"
-   ],
-   "blurb": "拡大しても輪郭が割れない Flapi 風スタンプカード。"
-  },
-  {
-   "id": "soft-plant-card",
-   "title": "Soft Plant Card",
-   "date": "2026-09-08",
-   "path": "./soft-plant-card/",
-   "tags": [
-    "UI",
-    "CSS"
-   ],
-   "blurb": "柔らかい植物カードの見た目試作。"
-  },
-  {
-   "id": "parallax-window",
-   "title": "Parallax Window",
-   "date": "2026-09-08",
-   "path": "./parallax-window/",
-   "tags": [
-    "UI",
-    "CSS"
-   ],
-   "blurb": "窓枠パララックスの軽いデモ。"
-  },
-  {
-   "id": "autosave-coalesce",
-   "title": "Autosave Coalesce",
-   "date": "2026-09-08",
-   "path": "./autosave-coalesce/",
-   "tags": [
-    "tategaki",
-    "UX"
-   ],
-   "blurb": "連続入力のオートセーブ間引きイメージ。"
-  },
-  {
-   "id": "2026-09-08-grass-walk",
-   "title": "Grass Walk (three.js)",
-   "date": "2026-09-08",
-   "path": "./2026-09-08-grass-walk/",
-   "tags": [
-    "BELENUS",
-    "three.js"
-   ],
-   "blurb": "草の上を歩く軽い three.js 試作。"
-  },
-  {
-   "id": "2026-09-08-branchless-bench",
-   "title": "Branchless Python Bench",
-   "date": "2026-09-08",
-   "path": "./2026-09-08-branchless-bench/",
-   "tags": [
-    "AI coding"
-   ],
-   "blurb": "ブランチレス寄りの Python マイクロベンチ（ソース付き）。"
-  }
- ]
+  "project": "x-bm-demos",
+  "pages": "https://x-bm-demos.pages.dev/",
+  "github": "https://github.com/pianopia/x-bm-demos",
+  "demos": [
+    {
+      "id": "ps1-fps-arena-2026-10-29",
+      "title": "PS1 FPS アリーナ (Expo web-play)",
+      "date": "2026-10-29",
+      "path": "./ps1-fps-arena-2026-10-29/",
+      "tags": [
+        "PS1",
+        "FPS",
+        "Expo",
+        "WebView",
+        "game",
+        "three.js"
+      ],
+      "blurb": "左スティック移動・右ドラッグ視点＋タップ射撃・リロードボタン。オフライン three.js アリーナ。"
+    },
+    {
+      "id": "haikyo-no-tomoshibi-2026-10-29",
+      "title": "廃墟の灯火 (Expo web-play)",
+      "date": "2026-10-29",
+      "path": "./haikyo-no-tomoshibi-2026-10-29/",
+      "tags": [
+        "BELENUS",
+        "PS1",
+        "RPG",
+        "Expo",
+        "WebView",
+        "game"
+      ],
+      "blurb": "PS1風長編RPGのブラウザ試遊版（Expoアプリと同梱ゲームパック）。タイトル→探索、東庭コンテンツ拡張、メニューでタイトル戻り。Origin: pianopia/haikyo-no-tomoshibi。",
+      "source": "https://cursor.com/codebase/pianopia/haikyo-no-tomoshibi"
+    },
+    {
+      "id": "chipdaw-8bit-2026-10-29",
+      "title": "CHIP DAW 8bit",
+      "date": "2026-10-29",
+      "path": "./chipdaw-8bit-2026-10-29/",
+      "tags": [
+        "chiptune",
+        "Web Audio",
+        "DAW",
+        "AI",
+        "tool"
+      ],
+      "blurb": "AIネイティブ×手編集の軽量8bit DAW。プロンプト→ローカル手続き生成で曲/効果音、4chピアノロール・パターン/オーダー・SFXサンドボックス・JSON/WAV書出。廃墟の灯火のBGMも開いて編集できる。",
+      "source": ""
+    },
+    {
+      "id": "motionbricks-steer-toy-2026-10-29",
+      "title": "MotionBricks Steer Toy",
+      "date": "2026-10-29",
+      "path": "./motionbricks-steer-toy-2026-10-29/",
+      "tags": [
+        "BELENUS",
+        "three.js",
+        "motion",
+        "AI"
+      ],
+      "blurb": "NVIDIA MotionBricks / @victormustar ブラウザデモ着想。操舵・歩行スタイル・障害物回避の感触を触るトイ（本物の重み／ONNXではない）。",
+      "source": "https://x.com/victormustar/status/2115531118292131887"
+    },
+    {
+      "id": "ps1-tps-explore-rpg-2026-10-29",
+      "title": "PS1 TPS Explore RPG",
+      "date": "2026-10-29",
+      "path": "./ps1-tps-explore-rpg-2026-10-29/",
+      "tags": [
+        "BELENUS",
+        "three.js",
+        "PS1",
+        "RPG",
+        "game",
+        "chiptune"
+      ],
+      "blurb": "@codetaur PS1風レンダ着想の続き。TPS探索RPGのミニループ（ギミック・イベントフラグ・インベントリ）。8bit BGM（探索/戦闘/夜明け）と効果音つき、♪でミュート。",
+      "source": "https://x.com/codetaur/status/2114482452798574633"
+    },
+    {
+      "id": "voronoi-fracture-toy-2026-10-29",
+      "title": "Voronoi Fracture Toy (three.js)",
+      "date": "2026-10-29",
+      "path": "./voronoi-fracture-toy-2026-10-29/",
+      "tags": [
+        "BELENUS",
+        "three.js",
+        "VFX",
+        "destruction"
+      ],
+      "blurb": "@AssetLove の無料 UE Fracture Tool 着想。クリック位置寄りにボロノイ分割→凸セルの破片が重力で飛ぶブラウザトイ（本物のUEツールではない）。"
+    },
+    {
+      "id": "ps1-radiance-lite-2026-10-29",
+      "title": "PS1 Radiance Lite (three.js)",
+      "date": "2026-10-29",
+      "path": "./ps1-radiance-lite-2026-10-29/",
+      "tags": [
+        "BELENUS",
+        "three.js",
+        "lookdev",
+        "GI"
+      ],
+      "blurb": "@codetaur の Radiance Cascades×PS1風レンダ着想。低解像度・頂点スナップ・アフィンUV・ディザ＋フェイク1バウンスGI（VPL）をクリーン表示とA/B比較するトイ。"
+    },
+    {
+      "id": "kit-village-stream-2026-10-29",
+      "title": "Kit Village Stream (three.js)",
+      "date": "2026-10-29",
+      "path": "./kit-village-stream-2026-10-29/",
+      "tags": [
+        "BELENUS",
+        "three.js",
+        "procedural",
+        "streaming"
+      ],
+      "blurb": "@sorenxet「build a kit, not a town」着想。部品キットから家10種前後を手続き生成し、視錐台チャンクで中世の村を流し込むthree.jsトイ。"
+    },
+    {
+      "id": "openpoi-flapi-spots-2026-10-29",
+      "title": "Flapi × OpenPOI すれちがいスポット",
+      "date": "2026-10-29",
+      "path": "./openpoi-flapi-spots-2026-10-29/",
+      "tags": [
+        "Flapi",
+        "map",
+        "OpenPOI",
+        "API"
+      ],
+      "blurb": "OpenPOI API（@naogify）着想。周辺の実在施設をキー不要APIで引き、名刺交換しやすそうなスポットを地図に並べるトイ（スコアは仮）。"
+    },
+    {
+      "id": "frustum-stream-2026-10-10",
+      "title": "Frustum Streaming toy",
+      "date": "2026-10-10",
+      "path": "./frustum-stream-2026-10-10/",
+      "tags": [
+        "BELENUS",
+        "open-world",
+        "streaming"
+      ],
+      "blurb": "Roblox Frustum Streaming着想。周囲均等ロード vs 視錐台だけ遠くまで、のチャンク数を比べる2Dトイ。"
+    },
+    {
+      "id": "caustic-volume-lite-2026-09-28",
+      "title": "Caustic volume lite (three.js)",
+      "date": "2026-09-28",
+      "path": "./caustic-volume-lite-2026-09-28/",
+      "tags": [
+        "BELENUS",
+        "three.js",
+        "lookdev",
+        "water"
+      ],
+      "blurb": "ScottieFox caustic-volume着想。ブラウザだけの疑似コースティクス＋水面。BELENUS向けlook-devトイ。"
+    },
+    {
+      "id": "tategaki-parchment-flip-2026-09-27",
+      "title": "縦書き羊皮紙ブックフリップ",
+      "date": "2026-09-27",
+      "path": "./tategaki-parchment-flip-2026-09-27/",
+      "tags": [
+        "tategaki",
+        "PWA",
+        "UX",
+        "book"
+      ],
+      "blurb": "縦書き＋羊皮紙テクスチャの紙めくりリーダー。ドラッグ途中解放でスナップバック。羅生門抜粋のPWA。"
+    },
+    {
+      "id": "uv-repack-2026-09-25",
+      "title": "UV repack + texel density",
+      "date": "2026-09-25",
+      "path": "./uv-repack-2026-09-25/",
+      "tags": [
+        "BELENUS",
+        "Blender",
+        "UV"
+      ],
+      "blurb": "Auto Unwrap 1.1.0着想。リパック時のテクセル密度保持をブラウザで感触だけ触るトイ（本物アドオンではない）。"
+    },
+    {
+      "id": "ai-referral-dash-2026-09-24",
+      "title": "AI referral dashboard (mock)",
+      "date": "2026-09-24",
+      "path": "./ai-referral-dash-2026-09-24/",
+      "tags": [
+        "Flapi",
+        "tategaki",
+        "Midnote",
+        "analytics"
+      ],
+      "blurb": "Open Analytics v0.8.0着想。ChatGPT/Claude等からの流入を製品別に眺める静的モック（実計測なし）。"
+    },
+    {
+      "id": "sss-peachfuzz-2026-09-23",
+      "title": "SSS + peach fuzz look-dev",
+      "date": "2026-09-23",
+      "path": "./sss-peachfuzz-2026-09-23/",
+      "tags": [
+        "BELENUS",
+        "three.js",
+        "lookdev"
+      ],
+      "blurb": "ブラウザのみの疑似SSS＋産毛リム＋屈折角膜。BELENUS向けlook-devトイ（本番SSSではない）。"
+    },
+    {
+      "id": "comment-motion-toy-2026-09-22",
+      "title": "Comment → Motion Toy",
+      "date": "2026-09-22",
+      "path": "./comment-motion-toy-2026-09-22/",
+      "tags": [
+        "BELENUS",
+        "UX",
+        "live"
+      ],
+      "blurb": "ARDY Mini着想。コメント文言→モーションの感触だけ触る静的トイ（本物モデルなし）。"
+    },
+    {
+      "id": "shader-stamp-card-2026-09-21",
+      "title": "Shader Stamp Card",
+      "date": "2026-09-21",
+      "path": "./shader-stamp-card-2026-09-21/",
+      "tags": [
+        "Flapi",
+        "WebGL",
+        "UI"
+      ],
+      "blurb": "店舗スタンプカードにシェーダー背景＋傾き＋押下。shadercn/インタラクティブカード着想の静的トイ。"
+    },
+    {
+      "id": "jev-flapi-lab-2026-09-19",
+      "title": "Jev-shaped lab (free mock) × Flapi",
+      "date": "2026-09-19",
+      "path": "./jev-flapi-lab-2026-09-19/",
+      "tags": [
+        "Flapi",
+        "Jev",
+        "System One"
+      ],
+      "blurb": "Noul/Choice/Score の応答形を無料の静的モックで触る。本物Jev/Workers AIは使わない。"
+    },
+    {
+      "id": "lens-trace-2026-09-18",
+      "title": "Lens Trace — anamorphic + diffusion",
+      "date": "2026-09-18",
+      "path": "./lens-trace-2026-09-18/",
+      "tags": [
+        "BELENUS",
+        "three.js",
+        "cinematic"
+      ],
+      "blurb": "FF寄りシネマのレンズ味を Web で先に触るトイ。"
+    },
+    {
+      "id": "stamp-pattern-2026-09-17",
+      "title": "Stamp Pattern Mixer",
+      "date": "2026-09-17",
+      "path": "./stamp-pattern-2026-09-17/",
+      "tags": [
+        "Flapi",
+        "SVG"
+      ],
+      "blurb": "店舗スタンプカードの背景柄ミキサー（ベース×重ね×色×密度）。"
+    },
+    {
+      "id": "vector-stamp-card",
+      "title": "Vector Stamp Card",
+      "date": "2026-09-16",
+      "path": "./vector-stamp-card/",
+      "tags": [
+        "Flapi",
+        "SVG"
+      ],
+      "blurb": "拡大しても輪郭が割れない Flapi 風スタンプカード。"
+    },
+    {
+      "id": "soft-plant-card",
+      "title": "Soft Plant Card",
+      "date": "2026-09-08",
+      "path": "./soft-plant-card/",
+      "tags": [
+        "UI",
+        "CSS"
+      ],
+      "blurb": "柔らかい植物カードの見た目試作。"
+    },
+    {
+      "id": "parallax-window",
+      "title": "Parallax Window",
+      "date": "2026-09-08",
+      "path": "./parallax-window/",
+      "tags": [
+        "UI",
+        "CSS"
+      ],
+      "blurb": "窓枠パララックスの軽いデモ。"
+    },
+    {
+      "id": "autosave-coalesce",
+      "title": "Autosave Coalesce",
+      "date": "2026-09-08",
+      "path": "./autosave-coalesce/",
+      "tags": [
+        "tategaki",
+        "UX"
+      ],
+      "blurb": "連続入力のオートセーブ間引きイメージ。"
+    },
+    {
+      "id": "2026-09-08-grass-walk",
+      "title": "Grass Walk (three.js)",
+      "date": "2026-09-08",
+      "path": "./2026-09-08-grass-walk/",
+      "tags": [
+        "BELENUS",
+        "three.js"
+      ],
+      "blurb": "草の上を歩く軽い three.js 試作。"
+    },
+    {
+      "id": "2026-09-08-branchless-bench",
+      "title": "Branchless Python Bench",
+      "date": "2026-09-08",
+      "path": "./2026-09-08-branchless-bench/",
+      "tags": [
+        "AI coding"
+      ],
+      "blurb": "ブランチレス寄りの Python マイクロベンチ（ソース付き）。"
+    }
+  ]
 }
