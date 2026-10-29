@@ -62,15 +62,10 @@ export const T = {
   herb: colTex('#3d8a4a', .15),
   medkit: tex((g, n) => { g.fillStyle = '#6a3030'; g.fillRect(0, 0, n, n); g.fillStyle = '#e8e8e8'; g.fillRect(26, 10, 12, 44); g.fillRect(10, 26, 44, 12); noise(g, n, .1); }),
   scout: colTex('#6a5a8a', .12),
-  black: colTex('#080808', .02),
-  zombie: tex((g, n) => { g.fillStyle = '#5f7a48'; g.fillRect(0, 0, n, n); g.fillStyle = '#3c4f2c'; for (let i = 0; i < 26; i++) g.fillRect(Math.random() * n | 0, Math.random() * n | 0, 6, 4); g.fillStyle = '#6a2a22'; for (let i = 0; i < 8; i++) g.fillRect(Math.random() * n | 0, Math.random() * n | 0, 5, 3); noise(g, n, .2); }),
-  zombieDark: tex((g, n) => { g.fillStyle = '#4a5a3a'; g.fillRect(0, 0, n, n); g.fillStyle = '#2e3a24'; for (let i = 0; i < 30; i++) g.fillRect(Math.random() * n | 0, Math.random() * n | 0, 7, 5); g.fillStyle = '#5a1e18'; for (let i = 0; i < 10; i++) g.fillRect(Math.random() * n | 0, Math.random() * n | 0, 6, 4); noise(g, n, .2); }),
-  zombieHead: tex((g, n) => { g.fillStyle = '#6a8450'; g.fillRect(0, 0, n, n); g.fillStyle = '#2a3020'; g.fillRect(0, 0, n, 12); g.fillStyle = '#1a1010'; g.fillRect(18, 22, 10, 8); g.fillRect(36, 22, 10, 8); g.fillStyle = '#3a1010'; g.fillRect(20, 42, 24, 8); g.fillStyle = '#c8c0a0'; for (let x = 22; x < 42; x += 5) g.fillRect(x, 42, 3, 4); noise(g, n, .2); }),
-  rags: tex((g, n) => { g.fillStyle = '#4a4036'; g.fillRect(0, 0, n, n); g.fillStyle = '#2e2620'; for (let i = 0; i < n; i += 10) g.fillRect(0, i, n, 3); g.fillStyle = '#6a2420'; for (let i = 0; i < 12; i++) g.fillRect(Math.random() * n | 0, Math.random() * n | 0, 6, 6); g.fillStyle = '#5f7a48'; g.fillRect(20, 30, 14, 12); noise(g, n, .2); }),
-  pants: tex((g, n) => { g.fillStyle = '#2e3446'; g.fillRect(0, 0, n, n); g.fillStyle = '#1c2030'; for (let i = 0; i < 16; i++) g.fillRect(Math.random() * n | 0, Math.random() * n | 0, 8, 5); noise(g, n, .2); }),
-  bone: tex((g, n) => { g.fillStyle = '#d8d0b8'; g.fillRect(0, 0, n, n); g.fillStyle = '#a89c80'; for (let i = 0; i < 18; i++) g.fillRect(Math.random() * n | 0, Math.random() * n | 0, 3, 6); noise(g, n, .12); }),
-  skull: tex((g, n) => { g.fillStyle = '#e0d8c0'; g.fillRect(0, 0, n, n); g.fillStyle = '#100c08'; g.fillRect(14, 20, 14, 14); g.fillRect(36, 20, 14, 14); g.fillRect(28, 36, 8, 8); g.fillStyle = '#2a2018'; g.fillRect(16, 48, 32, 8); g.fillStyle = '#e0d8c0'; for (let x = 18; x < 46; x += 5) g.fillRect(x, 48, 3, 6); noise(g, n, .12); }),
-  ribs: tex((g, n) => { g.fillStyle = '#100c08'; g.fillRect(0, 0, n, n); g.fillStyle = '#d8d0b8'; g.fillRect(28, 0, 8, n); for (let y = 4; y < n; y += 11) g.fillRect(4, y, 56, 5); noise(g, n, .1); }),
+  zombieSkin: colTex('#5a7a48', .18),
+  zombieRot: colTex('#3d5238', .22),
+  bone: colTex('#c8c4b8', .1),
+  boneDark: colTex('#8a8680', .12),
 };
 
 export const mats = [];

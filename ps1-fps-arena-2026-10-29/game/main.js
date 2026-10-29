@@ -7,8 +7,10 @@ const DEBUG = params.get('debug') === '1';
 const STICK_R = 56;
 const FIRE_DRAG_MAX = 14;
 const FIRE_TAP_MS = 220;
-const PICKUP_R = 1.55; // horizontal (xz) radius — auto-collect on walk-over
-const PICKUP_PROMPT_R = 2.6;
+const HEART_SLOTS = 8;
+const PICKUP_R = 1.55;
+const PICKUP_BTN_R = 2.0;
+let nearPickup = null;
 
 /** @type {'title'|'play'} */
 let phase = 'title';
@@ -29,10 +31,10 @@ const player = {
   reserve: 36,
   reloading: false,
   reloadT: 0,
-  reloadDur: 1.45,
+  reloadDur: 0.8,
   yaw: 0,
   pitch: 0,
-  pos: new THREE.Vector3(0, 1.6, 6),
+  pos: new THREE.Vector3(0, 1.6, 9),
   speed: 4.2,
   fireCd: 0,
   fireRate: 0.12,
@@ -42,15 +44,15 @@ const player = {
 
 const ENEMY_TYPES = {
   tank: {
-    name: '巨体ゾンビ', hp: 6, touchDps: 6, model: 'zombieBig',
+    name: '腐ゾンビ', model: 'zombie', variant: 'brute', hp: 6, touchDps: 6,
     speed: 0.72, stop: 1.55, melee: 2.05,
   },
   runner: {
-    name: '走るゾンビ', hp: 2, touchDps: 3.3, model: 'zombie',
-    speed: 1.7, stop: 1.35, melee: 1.85,
+    name: '骨走り', model: 'skeleton', variant: 'runner', hp: 2, touchDps: 3.3,
+    speed: 2.05, stop: 1.35, melee: 1.85,
   },
   sniper: {
-    name: '骸骨弓兵', hp: 3, touchDps: 1, model: 'skeleton',
+    name: '骨弓', model: 'skeleton', variant: 'sniper', hp: 3, touchDps: 1,
     speed: 0.88, stop: 5.5, melee: 2.4, ideal: 7.5,
     ranged: true, range: 12, shotRate: 4.35, shotDmg: 1,
   },
@@ -70,7 +72,7 @@ document.body.prepend(R.domElement);
 
 const S = new THREE.Scene();
 S.background = new THREE.Color(0x050508);
-const cam = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 40);
+const cam = new THREE.PerspectiveCamera(72, innerWidth / innerHeight, 0.05, 55);
 const pipeline = createPipeline(R);
 
 const solids = [];
@@ -87,24 +89,59 @@ function addSolid(geo, tex, rep, pos, rot = [0, 0, 0], emi = 0) {
   return m;
 }
 
-const W = 14, D = 14, H = 3.2;
-addSolid(new THREE.PlaneGeometry(W, D, 10, 10), T.floor, [4, 4], [0, 0, 0], [-Math.PI / 2, 0, 0]);
-addSolid(new THREE.PlaneGeometry(W, D, 10, 10), T.plaster, [4, 4], [0, H, 0], [Math.PI / 2, 0, 0]);
-addSolid(new THREE.PlaneGeometry(D, H, 10, 4), T.brick, [5, 1.2], [-W / 2, H / 2, 0], [0, Math.PI / 2, 0]);
-addSolid(new THREE.PlaneGeometry(D, H, 10, 4), T.brick, [5, 1.2], [W / 2, H / 2, 0], [0, -Math.PI / 2, 0]);
-addSolid(new THREE.PlaneGeometry(W, H, 10, 4), T.brick, [5, 1.2], [0, H / 2, -D / 2], [0, 0, 0]);
-addSolid(new THREE.PlaneGeometry(W, H, 10, 4), T.red, [2, 1], [0, H / 2, D / 2], [0, Math.PI, 0]);
-for (const [x, z, sx, sy, sz] of [
-  [-4, -3, 2, 1.2, 1], [3, 2, 1.5, 1.8, 1.5], [-2, 4, 3, 1, 2], [5, -4, 1, 2.5, 1],
-  [0, 0, 2.5, 1, 2.5], [-5, 5, 1.2, 1.2, 1.2],
-]) {
-  addSolid(new THREE.BoxGeometry(sx, sy, sz, 2, 2, 2), T.wood, [1, 1], [x, sy / 2, z], [0, x * 0.1, 0]);
+const W = 26, D = 22, H = 3.2;
+
+function buildArena() {
+  addSolid(new THREE.PlaneGeometry(W, D, 14, 12), T.floor, [6, 5], [0, 0, 0], [-Math.PI / 2, 0, 0]);
+  addSolid(new THREE.PlaneGeometry(W, D, 14, 12), T.plaster, [6, 5], [0, H, 0], [Math.PI / 2, 0, 0]);
+  addSolid(new THREE.PlaneGeometry(D, H, 12, 4), T.brick, [6, 1.2], [-W / 2, H / 2, 0], [0, Math.PI / 2, 0]);
+  addSolid(new THREE.PlaneGeometry(D, H, 12, 4), T.brick, [6, 1.2], [W / 2, H / 2, 0], [0, -Math.PI / 2, 0]);
+  addSolid(new THREE.PlaneGeometry(W, H, 12, 4), T.brick, [6, 1.2], [0, H / 2, -D / 2], [0, 0, 0]);
+  addSolid(new THREE.PlaneGeometry(W, H, 12, 4), T.red, [3, 1], [0, H / 2, D / 2], [0, Math.PI, 0]);
+  // Corridors & room partitions
+  addSolid(new THREE.BoxGeometry(0.35, H, 10, 1, 4, 1), T.plaster, [1, 2], [-7, H / 2, -4], [0, 0, 0]);
+  addSolid(new THREE.BoxGeometry(0.35, H, 8, 1, 4, 1), T.plaster, [1, 2], [4, H / 2, 2], [0, 0.2, 0]);
+  addSolid(new THREE.BoxGeometry(12, H, 0.35, 4, 4, 1), T.brick, [3, 1], [-2, H / 2, -8], [0, 0, 0]);
+  addSolid(new THREE.BoxGeometry(8, H, 0.35, 3, 4, 1), T.brick, [2, 1], [8, H / 2, -2], [0, 0.1, 0]);
+  addSolid(new THREE.BoxGeometry(0.35, H, 6, 1, 3, 1), T.wood, [1, 1], [-11, H / 2, 6], [0, 0, 0]);
+  for (const [x, z, sx, sy, sz] of [
+    [-10, -7, 2.2, 1.3, 1.2], [9, -6, 1.8, 1.6, 1.4], [-8, 3, 3, 1, 2.2], [11, 4, 2.5, 1.2, 2],
+    [2, -2, 2.8, 1, 2.8], [-3, 7, 1.4, 1.4, 1.4], [6, -9, 2, 1.2, 1], [-12, 0, 1.2, 2.4, 1],
+    [0, 5, 3.5, 1, 1.5], [12, -2, 1, 2.2, 1], [-5, -3, 1.5, 1.8, 1.5], [7, 7, 2, 1, 2],
+  ]) {
+    addSolid(new THREE.BoxGeometry(sx, sy, sz, 2, 2, 2), T.wood, [1, 1], [x, sy / 2, z], [0, x * 0.08, 0]);
+  }
+}
+buildArena();
+
+// --- XZ collision (walls / crates): circle vs AABB push-out
+const colliders = solids
+  .filter((m) => m.geometry?.type === 'BoxGeometry')
+  .map((m) => { m.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(m); return { x0: b.min.x, x1: b.max.x, z0: b.min.z, z1: b.max.z }; });
+function collideXZ(pos, r) {
+  for (let it = 0; it < 2; it++) {
+    for (const c of colliders) {
+      const cx = clamp(pos.x, c.x0, c.x1), cz = clamp(pos.z, c.z0, c.z1);
+      const dx = pos.x - cx, dz = pos.z - cz;
+      const d2 = dx * dx + dz * dz;
+      if (d2 >= r * r) continue;
+      if (d2 > 1e-8) {
+        const d = Math.sqrt(d2), k = (r - d) / d;
+        pos.x += dx * k; pos.z += dz * k;
+      } else {
+        const pen = [pos.x - c.x0 + r, c.x1 - pos.x + r, pos.z - c.z0 + r, c.z1 - pos.z + r];
+        const i = pen.indexOf(Math.min(...pen));
+        if (i === 0) pos.x -= pen[0]; else if (i === 1) pos.x += pen[1]; else if (i === 2) pos.z -= pen[2]; else pos.z += pen[3];
+      }
+    }
+  }
 }
 
 const lights = [
-  { pos: new THREE.Vector3(-3, 2.6, -2), col: new THREE.Color(1.0, 0.65, 0.35).multiplyScalar(3.5) },
-  { pos: new THREE.Vector3(3.5, 2.4, 3), col: new THREE.Color(0.4, 0.75, 1).multiplyScalar(2.8) },
+  { pos: new THREE.Vector3(-8, 2.6, -6), col: new THREE.Color(1.0, 0.65, 0.35).multiplyScalar(3.5) },
+  { pos: new THREE.Vector3(9, 2.4, 5), col: new THREE.Color(0.4, 0.75, 1).multiplyScalar(2.8) },
   { pos: new THREE.Vector3(0, 2.5, 0), col: new THREE.Color(0.9, 0.85, 0.7).multiplyScalar(1.8) },
+  { pos: new THREE.Vector3(-10, 2.3, 7), col: new THREE.Color(0.85, 0.7, 0.5).multiplyScalar(2.2) },
 ];
 
 function syncLights() {
@@ -148,14 +185,81 @@ function enableFallbackRenderer() {
 }
 if (fallbackMode) enableFallbackRenderer();
 
-function setMeshEmissive(obj, r, g, b) {
-  obj?.traverse?.((mesh) => {
-    if (!mesh.isMesh || mesh.userData.keepEmi) return;
-    if (mesh.material?.uniforms?.uEmi) mesh.material.uniforms.uEmi.value.setRGB(r, g, b);
-    else if (mesh.material?.emissive) mesh.material.emissive.setRGB(r, g, b);
-  });
+function setMeshEmissive(mesh, r, g, b) {
+  if (mesh?.material?.uniforms?.uEmi) mesh.material.uniforms.uEmi.value.setRGB(r, g, b);
+  else if (mesh?.material?.emissive) mesh.material.emissive.setRGB(r, g, b);
 }
-function toLambertDeep(obj) { obj.traverse((o) => meshToLambert(o)); }
+
+function setRootEmissive(root, r, g, b) {
+  if (!root) return;
+  root.traverse((o) => { if (o.isMesh) setMeshEmissive(o, r, g, b); });
+}
+
+function horizDistXZ(x1, z1, x2, z2) {
+  return Math.hypot(x1 - x2, z1 - z2);
+}
+
+function part(geo, tex, x, y, z, ry = 0, emi = 0, hitZone = 'body') {
+  const m = new THREE.Mesh(geo, M(tex, [1, 1], emi));
+  m.position.set(x, y, z);
+  m.rotation.y = ry;
+  m.userData.hitZone = hitZone;
+  return m;
+}
+
+function buildZombieGroup(variant = 'normal') {
+  const g = new THREE.Group();
+  const s = variant === 'brute' ? 1.18 : 1;
+  const skin = T.zombieSkin;
+  const rot = T.zombieRot;
+  g.add(part(new THREE.BoxGeometry(0.34 * s, 0.34 * s, 0.34 * s, 1, 1, 1), skin, 0, 1.38 * s, 0, 0, 0, 'head'));
+  g.add(part(new THREE.BoxGeometry(0.52 * s, 0.58 * s, 0.3 * s, 2, 2, 1), rot, 0, 0.88 * s, 0));
+  g.add(part(new THREE.BoxGeometry(0.15 * s, 0.48 * s, 0.15 * s, 1, 1, 1), skin, -0.36 * s, 0.92 * s, 0, 0.25));
+  g.add(part(new THREE.BoxGeometry(0.15 * s, 0.48 * s, 0.15 * s, 1, 1, 1), skin, 0.36 * s, 0.92 * s, 0, -0.25));
+  g.add(part(new THREE.BoxGeometry(0.2 * s, 0.52 * s, 0.2 * s, 1, 1, 1), rot, -0.13 * s, 0.26 * s, 0.05));
+  g.add(part(new THREE.BoxGeometry(0.2 * s, 0.52 * s, 0.2 * s, 1, 1, 1), rot, 0.13 * s, 0.26 * s, -0.05));
+  g.userData.feetY = 0;
+  return g;
+}
+
+function buildSkeletonGroup(variant = 'runner') {
+  const g = new THREE.Group();
+  const bone = T.bone;
+  const dark = T.boneDark;
+  const tall = variant === 'sniper' ? 1.12 : 0.95;
+  g.add(part(new THREE.BoxGeometry(0.28 * tall, 0.3 * tall, 0.28 * tall, 1, 1, 1), bone, 0, 1.45 * tall, 0, 0, 0, 'head'));
+  g.add(part(new THREE.BoxGeometry(0.38 * tall, 0.52 * tall, 0.18 * tall, 2, 2, 1), dark, 0, 0.92 * tall, 0));
+  g.add(part(new THREE.BoxGeometry(0.1 * tall, 0.42 * tall, 0.1 * tall, 1, 1, 1), bone, -0.32 * tall, 0.95 * tall, 0, 0.15));
+  g.add(part(new THREE.BoxGeometry(0.1 * tall, 0.42 * tall, 0.1 * tall, 1, 1, 1), bone, 0.32 * tall, 0.95 * tall, 0, -0.15));
+  g.add(part(new THREE.BoxGeometry(0.12 * tall, 0.48 * tall, 0.12 * tall, 1, 1, 1), bone, -0.1 * tall, 0.24 * tall, 0.04));
+  g.add(part(new THREE.BoxGeometry(0.12 * tall, 0.48 * tall, 0.12 * tall, 1, 1, 1), bone, 0.1 * tall, 0.24 * tall, -0.04));
+  if (variant === 'sniper') {
+    g.add(part(new THREE.BoxGeometry(0.06 * tall, 0.7 * tall, 0.06 * tall, 1, 1, 1), dark, 0.34 * tall, 1.0 * tall, -0.05, -0.4));
+  }
+  g.userData.feetY = 0;
+  return g;
+}
+
+function buildEnemyMesh(def) {
+  if (def.model === 'zombie') return buildZombieGroup(def.variant);
+  return buildSkeletonGroup(def.variant);
+}
+
+function findEnemyFromHit(obj) {
+  for (const e of enemies) {
+    if (!e.alive || !e.mesh) continue;
+    let hit = false;
+    e.mesh.traverse((c) => { if (c === obj) hit = true; });
+    if (hit) return e;
+  }
+  return null;
+}
+
+function enemyHitMeshes() {
+  const arr = [];
+  for (const e of livingEnemies()) e.mesh?.traverse((c) => { if (c.isMesh) arr.push(c); });
+  return arr;
+}
 
 // --- Toasts
 function toast(msg) {
@@ -173,12 +277,12 @@ function toast(msg) {
 
 // --- Pickups
 const PICKUP_SPOTS = [
-  { kind: 'ammo', x: -5.5, z: -4, amount: 12, respawn: 18 },
-  { kind: 'ammo', x: 5, z: 4.5, amount: 12, respawn: 18 },
-  { kind: 'ammo', x: 0, z: -6, amount: 8, respawn: 22 },
-  { kind: 'herb', x: -2, z: 5.5, amount: 1, respawn: 28 },
-  { kind: 'medkit', x: 4, z: -1, amount: 2, respawn: 35 },
-  { kind: 'herb', x: 6, z: -5, amount: 1, respawn: 30 },
+  { kind: 'ammo', x: -10, z: -8, amount: 12, respawn: 18 },
+  { kind: 'ammo', x: 10, z: 7, amount: 12, respawn: 18 },
+  { kind: 'ammo', x: 0, z: -9, amount: 8, respawn: 22 },
+  { kind: 'herb', x: -11, z: 5, amount: 1, respawn: 28 },
+  { kind: 'medkit', x: 8, z: -3, amount: 2, respawn: 35 },
+  { kind: 'herb', x: 5, z: 8, amount: 1, respawn: 30 },
 ];
 
 function spawnPickupSpot(spot) {
@@ -188,8 +292,7 @@ function spawnPickupSpot(spot) {
     ? new THREE.BoxGeometry(0.45, 0.28, 0.35, 1, 1, 1)
     : new THREE.BoxGeometry(0.35, 0.35, 0.35, 1, 1, 1);
   const mesh = new THREE.Mesh(geo, M(tex, [1, 1], 0x111111));
-  spot.baseY = spot.kind === 'ammo' ? 0.18 : 0.22;
-  mesh.position.set(spot.x, spot.baseY, spot.z);
+  mesh.position.set(spot.x, spot.kind === 'ammo' ? 0.18 : 0.22, spot.z);
   mesh.rotation.y = spot.x * 0.2;
   S.add(mesh);
   if (fallbackMode) meshToLambert(mesh);
@@ -215,7 +318,7 @@ function initPickups() {
   }
 }
 
-// --- Collect FX (particles + screen flash)
+// --- Collect FX (particles + ring + screen-edge flash)
 const fxParts = [];
 const FX_GEO = new THREE.BoxGeometry(0.07, 0.07, 0.07);
 const FX_COL = { ammo: [0xffd060, '#ffd06066'], herb: [0x60ff80, '#60ff8066'], medkit: [0xff6060, '#ff707066'] };
@@ -223,6 +326,13 @@ const fxMats = {};
 function fxMat(kind) {
   if (!fxMats[kind]) fxMats[kind] = new THREE.MeshBasicMaterial({ color: FX_COL[kind][0] });
   return fxMats[kind];
+}
+function edgeFlash(col, ms = 450) {
+  const fl = $('pickFlash');
+  fl.style.transition = 'none';
+  fl.style.background = `radial-gradient(circle, transparent 35%, ${col} 100%)`;
+  fl.style.opacity = '1';
+  requestAnimationFrame(() => requestAnimationFrame(() => { fl.style.transition = `opacity ${ms}ms ease-out`; fl.style.opacity = '0'; }));
 }
 function collectFx(kind, pos) {
   for (let i = 0; i < 18; i++) {
@@ -243,11 +353,7 @@ function collectFx(kind, pos) {
   ring.userData.ring = true;
   S.add(ring);
   fxParts.push(ring);
-  const fl = $('pickFlash');
-  fl.style.transition = 'none';
-  fl.style.background = `radial-gradient(circle, transparent 35%, ${FX_COL[kind][1]} 100%)`;
-  fl.style.opacity = '1';
-  requestAnimationFrame(() => requestAnimationFrame(() => { fl.style.transition = 'opacity .45s ease-out'; fl.style.opacity = '0'; }));
+  edgeFlash(FX_COL[kind][1]);
 }
 function updateFx(dt) {
   for (let i = fxParts.length - 1; i >= 0; i--) {
@@ -259,8 +365,19 @@ function updateFx(dt) {
     else { m.userData.v.y -= 9 * dt; m.rotation.x += dt * 8; m.rotation.y += dt * 6; }
   }
 }
+let hsTimer = 0;
+function headshotPop() {
+  const el = $('hsPop');
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+  clearTimeout(hsTimer);
+  hsTimer = setTimeout(() => el.classList.remove('show'), 650);
+  edgeFlash('#ff202088', 300);
+}
 
 function collectPickup(p) {
+  if (!p?.mesh) return;
   collectFx(p.kind, p.mesh.position.clone().setY(0.4));
   if (p.kind === 'ammo') {
     player.reserve += p.amount;
@@ -282,89 +399,53 @@ function collectPickup(p) {
   p.timer = p.respawn;
 }
 
-// --- Enemies (low-poly zombie / skeleton figures; root Group at feet, y=0)
-function part(root, w, h, d, tex, x, y, z, rx = 0, ry = 0, rz = 0) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d, 1, 1, 1), M(tex, [1, 1], 0));
-  m.position.set(x, y, z);
-  m.rotation.set(rx, ry, rz);
-  root.add(m);
-  return m;
-}
-function eyes(root, y, z, sep, col) {
-  for (const sx of [-1, 1]) {
-    const e = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.02), M(T.black, [1, 1], col));
-    e.position.set(sx * sep, y, z);
-    e.userData.keepEmi = true;
-    root.add(e);
-  }
-}
-function buildEnemyModel(kind) {
-  const g = new THREE.Group();
-  const limbs = {};
-  if (kind === 'skeleton') {
-    part(g, 0.26, 0.28, 0.26, T.skull, 0, 1.68, 0);
-    eyes(g, 1.7, 0.135, 0.06, 0x6688ff);
-    part(g, 0.08, 0.14, 0.08, T.bone, 0, 1.5, 0);
-    part(g, 0.42, 0.42, 0.18, T.ribs, 0, 1.22, 0);
-    part(g, 0.08, 0.22, 0.08, T.bone, 0, 0.92, 0);
-    part(g, 0.34, 0.1, 0.16, T.bone, 0, 0.8, 0);
-    limbs.la = part(g, 0.07, 0.62, 0.07, T.bone, -0.27, 1.12, 0.08, -0.5, 0, 0.08);
-    limbs.ra = part(g, 0.07, 0.62, 0.07, T.bone, 0.27, 1.12, 0.12, -1.1, 0, -0.08);
-    part(g, 0.05, 0.8, 0.05, T.wood, 0.3, 1.25, 0.42, 0.3, 0, 0);
-    limbs.ll = part(g, 0.09, 0.76, 0.09, T.bone, -0.11, 0.38, 0);
-    limbs.rl = part(g, 0.09, 0.76, 0.09, T.bone, 0.11, 0.38, 0);
-  } else {
-    const big = kind === 'zombieBig';
-    const s = big ? 1.25 : 1;
-    const skin = big ? T.zombieDark : T.zombie;
-    const ax = 0.33 * s * (big ? 1.25 : 1);
-    part(g, 0.32 * s, 0.32 * s, 0.3 * s, T.zombieHead, 0, 1.52 * s, 0.06 * s, 0.25, 0, 0.12);
-    eyes(g, 1.55 * s, 0.22 * s, 0.07 * s, 0xff3020);
-    part(g, (big ? 0.62 : 0.46) * s, 0.58 * s, 0.26 * s, T.rags, 0, 1.06 * s, 0, 0.18, 0, 0);
-    limbs.la = part(g, 0.13 * s, 0.6 * s, 0.13 * s, skin, -ax, 1.1 * s, 0.26 * s, -1.35, 0, 0);
-    limbs.ra = part(g, 0.13 * s, 0.6 * s, 0.13 * s, skin, ax, 1.08 * s, 0.24 * s, -1.25, 0, 0);
-    limbs.ll = part(g, 0.16 * s, 0.76 * s, 0.16 * s, T.pants, -0.13 * s, 0.38 * s, 0);
-    limbs.rl = part(g, 0.16 * s, 0.76 * s, 0.16 * s, T.pants, 0.13 * s, 0.38 * s, 0);
-  }
-  // invisible hitbox for reliable raycast
-  const hbH = kind === 'zombieBig' ? 2.05 : kind === 'skeleton' ? 1.85 : 1.75;
-  const hbW = kind === 'zombieBig' ? 1.0 : 0.7;
-  const hit = new THREE.Mesh(new THREE.BoxGeometry(hbW, hbH, 0.7), new THREE.MeshBasicMaterial({ visible: false }));
-  hit.position.y = hbH / 2;
-  hit.userData.keepEmi = true;
-  g.add(hit);
-  return { g, hit, limbs };
-}
+// --- Enemies
 function spawnEnemy(typeKey, x, z) {
   const def = ENEMY_TYPES[typeKey];
-  const { g: mesh, hit, limbs } = buildEnemyModel(def.model);
+  const mesh = buildEnemyMesh(def);
   mesh.position.set(x, 0, z);
   S.add(mesh);
-  if (fallbackMode) toLambertDeep(mesh);
+  if (fallbackMode) mesh.traverse((o) => meshToLambert(o));
   const e = {
-    type: typeKey, def, mesh, hit, limbs, walk: Math.random() * 6, hp: def.hp, maxHp: def.hp, flash: 0, alive: true,
+    type: typeKey, def, mesh, hp: def.hp, maxHp: def.hp, flash: 0, alive: true,
     shotCd: 0, wander: Math.random() * Math.PI * 2, touchAcc: 0,
   };
   enemies.push(e);
   return e;
 }
 
+const SPAWN_POINTS = [
+  [-11, -9], [-3, -10], [5, -10], [11, -8], [-10, -4], [10, 1], [-11, 3],
+  [-6, 9], [3, 9], [10, 9], [-1, -5], [6, -5], [-4, 3], [9, -4],
+];
+const WAVE_SETS = [
+  ['tank', 'runner'],
+  ['runner', 'sniper', 'tank'],
+  ['sniper', 'runner', 'runner'],
+  ['tank', 'sniper', 'runner'],
+];
 function spawnWave() {
   enemies.forEach((e) => { if (e.mesh) S.remove(e.mesh); });
   enemies.length = 0;
-  // Small arena: 2–3 foes per wave, spawned on the far side away from the player
-  const sets = [
-    [['runner', -4.5, -5.5], ['tank', 4.5, -5.5]],
-    [['runner', -5.5, -5], ['sniper', 5.5, -5.5]],
-    [['tank', -5, -5.5], ['runner', 5.5, -4.5], ['sniper', 0, -6]],
-    [['runner', -5.5, -5.5], ['runner', 5.5, -5.5], ['sniper', 2, -6]],
-    [['tank', -5.5, -5], ['sniper', 5.5, -5.5], ['runner', 0.5, -6.2]],
-  ];
-  let list = sets[Math.min(wave - 1, sets.length - 1)];
-  if (wave > sets.length) list = sets[2 + ((wave - 1) % 3)];
-  const flip = player.pos.z < 0 ? -1 : 1;
-  list = list.map(([t, x, z]) => [t, x, z * flip]);
-  for (const [t, x, z] of list) spawnEnemy(t, x, z);
+  const list = WAVE_SETS[(wave - 1) % WAVE_SETS.length];
+  const pts = SPAWN_POINTS
+    .map(([x, z]) => ({ x, z, d: Math.hypot(x - player.pos.x, z - player.pos.z) }))
+    .filter((p) => p.d > 8)
+    .sort(() => Math.random() - 0.5);
+  const used = [];
+  for (const t of list) {
+    const pt = pts.find((p) => used.every((u) => Math.hypot(u.x - p.x, u.z - p.z) > 6)) || pts[0];
+    used.push(pt);
+    pts.splice(pts.indexOf(pt), 1);
+    spawnEnemy(t, pt.x, pt.z);
+  }
+}
+
+function tryCollectNearPickup() {
+  if (!nearPickup?.mesh || phase !== 'play') return;
+  if (horizDistXZ(player.pos.x, player.pos.z, nearPickup.x, nearPickup.z) <= PICKUP_BTN_R) {
+    collectPickup(nearPickup);
+  }
 }
 
 function livingEnemies() {
@@ -394,7 +475,7 @@ function updateGunAnim(dt) {
     const stage = Math.floor(t * 5);
     if (stage > reloadSfxStage) {
       reloadSfxStage = stage;
-      sfxReloadStage(stage);
+      sfxReloadStage(Math.min(stage, 3));
     }
   } else {
     reloadSfxStage = 0;
@@ -405,9 +486,10 @@ function updateGunAnim(dt) {
 }
 
 // --- Audio
-let actx, bgmTimer, bgmStep = 0;
+let actx, bgmSrc = null, bgmGain = null, bgmBuffer = null;
 function audio() {
   if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+  if (actx.state === "suspended") actx.resume();
   return actx;
 }
 function beep(freq, dur, type = 'square', vol = 0.08, when = 0) {
@@ -446,6 +528,11 @@ function sfxShoot() {
 }
 function sfxEmpty() { beep(140, 0.03, 'square', 0.04); beep(90, 0.05, 'square', 0.03); }
 function sfxHit() { beep(280, 0.05, 'triangle', 0.06); beep(180, 0.06, 'square', 0.04); }
+function sfxHeadshot() {
+  beep(520, 0.07, 'square', 0.065);
+  beep(880, 0.09, 'triangle', 0.05);
+  noiseBurst(0.04, 0.035);
+}
 function sfxDeath() {
   beep(120, 0.12, 'sawtooth', 0.07);
   beep(80, 0.15, 'square', 0.05);
@@ -459,33 +546,176 @@ function sfxClear() {
   beep(659, 0.08, 'square', 0.05, 0.09);
   beep(784, 0.12, 'triangle', 0.06, 0.18);
 }
+function metalHit(when, pitch = 1, vol = 0.06, ring = 0.16) {
+  if (muted) return;
+  const ctx = audio();
+  const t0 = ctx.currentTime + when;
+  // noisy transient through bandpass = steel impact
+  const n = ctx.createBuffer(1, (ctx.sampleRate * 0.06) | 0, ctx.sampleRate);
+  const d = n.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+  const src = ctx.createBufferSource(); src.buffer = n;
+  const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 3200 * pitch; bp.Q.value = 2.5;
+  const ng = ctx.createGain(); ng.gain.value = vol * 2.2;
+  src.connect(bp); bp.connect(ng); ng.connect(ctx.destination); src.start(t0);
+  // inharmonic partials = metallic ring
+  for (const [f, a] of [[1240, 1], [1983, 0.7], [2871, 0.45], [4130, 0.3]]) {
+    const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.type = 'sine'; o.frequency.setValueAtTime(f * pitch, t0);
+    g.gain.setValueAtTime(vol * a, t0); g.gain.exponentialRampToValueAtTime(0.0008, t0 + ring * (1.2 - a * 0.3));
+    o.connect(g); g.connect(ctx.destination); o.start(t0); o.stop(t0 + ring + 0.05);
+  }
+  // body thump
+  const o = ctx.createOscillator(); const g = ctx.createGain();
+  o.type = 'triangle'; o.frequency.setValueAtTime(190 * pitch, t0); o.frequency.exponentialRampToValueAtTime(70, t0 + 0.07);
+  g.gain.setValueAtTime(vol * 1.6, t0); g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.09);
+  o.connect(g); g.connect(ctx.destination); o.start(t0); o.stop(t0 + 0.12);
+}
 function sfxReloadStage(stage) {
+  // 0: mag release / 1: mag out / 2: mag seat (カチッ) / 3: slide rack ガチャン
   const seq = [
-    () => { beep(180, 0.04, 'square', 0.04); noiseBurst(0.02, 0.02); },
-    () => beep(260, 0.05, 'triangle', 0.045),
-    () => { beep(320, 0.04, 'square', 0.04); beep(140, 0.06, 'sawtooth', 0.03); },
-    () => beep(420, 0.05, 'triangle', 0.05),
-    () => { beep(520, 0.07, 'square', 0.05); beep(780, 0.05, 'triangle', 0.04); },
+    () => metalHit(0, 1.4, 0.03, 0.06),
+    () => metalHit(0, 0.8, 0.035, 0.08),
+    () => { metalHit(0, 1.1, 0.05, 0.1); metalHit(0.035, 0.9, 0.04, 0.08); },
+    () => { metalHit(0, 0.75, 0.07, 0.14); metalHit(0.075, 1.05, 0.085, 0.24); },
   ];
   seq[Math.min(stage, seq.length - 1)]?.();
 }
-function startBgm() {
-  if (bgmTimer || muted) return;
-  bgmTimer = setInterval(() => {
-    if (muted || phase !== 'play') return;
-    const base = [110, 131, 165, 196][bgmStep % 4];
-    beep(base, 0.14, 'triangle', 0.012);
-    beep(base * 2, 0.1, 'square', 0.006);
-    bgmStep++;
-  }, 420);
+
+function synthWave(buf, ch, t, freq, vol, type, dur) {
+  if (t < 0 || t >= buf.duration) return;
+  const sr = buf.sampleRate;
+  const i0 = (t * sr) | 0;
+  const i1 = Math.min(buf.length, i0 + (dur * sr) | 0);
+  for (let i = i0; i < i1; i++) {
+    const tt = (i - i0) / sr;
+    const env = Math.min(1, tt * 40) * Math.max(0, 1 - tt / dur);
+    let s = 0;
+    const ph = freq * tt * Math.PI * 2;
+    if (type === 'square') s = Math.sign(Math.sin(ph)) * 0.55;
+    else if (type === 'triangle') s = Math.asin(Math.sin(ph)) * (2 / Math.PI);
+    else s = Math.sin(ph);
+    ch[i] += s * vol * env;
+  }
 }
-function stopBgm() { clearInterval(bgmTimer); bgmTimer = null; }
+
+function synthNoise(ch, t, dur, vol, hp, sr, seed) {
+  const i0 = (t * sr) | 0, i1 = Math.min(ch.length, i0 + ((dur * sr) | 0));
+  let prev = 0, x = seed;
+  for (let i = i0; i < i1; i++) {
+    x = (x * 1103515245 + 12345) & 0x7fffffff;
+    const w = (x / 0x3fffffff) - 1;
+    const v = hp ? w - prev : w; prev = w;
+    const tt = (i - i0) / sr;
+    ch[i] += v * vol * Math.pow(Math.max(0, 1 - tt / dur), 2);
+  }
+}
+function synthKick(ch, t, vol, sr) {
+  const i0 = (t * sr) | 0, n = (0.16 * sr) | 0;
+  let ph = 0;
+  for (let i = 0; i < n && i0 + i < ch.length; i++) {
+    const tt = i / sr;
+    ph += (2 * Math.PI * (45 + 110 * Math.exp(-tt * 30))) / sr;
+    ch[i0 + i] += Math.sin(ph) * vol * Math.exp(-tt * 18);
+  }
+}
+const midiHz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+function renderBgmBuffer() {
+  const ctx = audio();
+  const sr = ctx.sampleRate;
+  const bpm = 138, step = 60 / bpm / 4; // 16th
+  const bars = 16, dur = bars * 16 * step;
+  const buf = ctx.createBuffer(2, Math.ceil(sr * dur), sr);
+  const L = buf.getChannelData(0), Rc = buf.getChannelData(1);
+  // chords (root midi for bass, triad for arp)
+  const CH = { Am: [45, [57, 60, 64]], F: [41, [57, 60, 65]], G: [43, [55, 59, 62]], E: [40, [56, 59, 64]], Dm: [38, [57, 62, 65]] };
+  const prog = ['Am', 'F', 'G', 'E', 'Am', 'F', 'G', 'E', 'Dm', 'Am', 'F', 'E', 'Dm', 'Am', 'F', 'E'];
+  // lead in 8ths: number = midi, '-' = hold, 0 = rest
+  const lead = [
+    [69, '-', 72, 76, 74, 72, 71, 72], [69, '-', '-', 65, 69, 72, 74, 72],
+    [71, '-', 67, 71, 74, '-', 72, 71], [68, '-', 71, '-', 76, '-', '-', 0],
+    [81, '-', 79, 76, 77, 76, 74, 72], [72, '-', 69, 72, 77, '-', 76, 74],
+    [74, '-', 71, 74, 79, '-', 77, 76], [76, 74, 72, 71, 68, '-', '-', 0],
+    [74, '-', 77, '-', 81, '-', 77, 74], [76, '-', 72, '-', 69, '-', 72, 76],
+    [77, '-', 76, 77, 79, 77, 76, 72], [71, '-', 68, 71, 76, '-', '-', '-'],
+    [74, 77, 81, 77, 74, 77, 81, 84], [81, '-', 76, '-', 72, '-', 76, '-'],
+    [77, 76, 74, 72, 79, 77, 76, 74], [76, '-', '-', '-', 80, '-', 83, 0],
+  ];
+  let seed = 7;
+  for (let b = 0; b < bars; b++) {
+    const t0 = b * 16 * step;
+    const [root, tri] = CH[prog[b]];
+    const secB = b >= 8;
+    // bass: driving octave 8ths
+    for (let i = 0; i < 8; i++) {
+      const f = midiHz(root + (i % 2 ? 12 : 0));
+      synthWave(buf, L, t0 + i * 2 * step, f, 0.11, 'triangle', step * 1.8);
+      synthWave(buf, Rc, t0 + i * 2 * step, f, 0.11, 'triangle', step * 1.8);
+    }
+    // arp: 16ths, quiet pulse, panned right
+    for (let i = 0; i < 16; i++) {
+      const m = tri[[0, 1, 2, 1][i % 4]] + (i >= 8 && secB ? 12 : 0);
+      synthWave(buf, Rc, t0 + i * step, midiHz(m), 0.022, 'square', step * 0.7);
+      synthWave(buf, L, t0 + i * step, midiHz(m), 0.008, 'square', step * 0.7);
+    }
+    // lead: square with hold, panned slightly left
+    const row = lead[b];
+    for (let i = 0; i < 8; i++) {
+      const n = row[i];
+      if (typeof n !== 'number' || !n) continue;
+      let len = 1; while (i + len < 8 && row[i + len] === '-') len++;
+      const d = len * 2 * step * 0.92;
+      synthWave(buf, L, t0 + i * 2 * step, midiHz(n), 0.05, 'square', d);
+      synthWave(buf, Rc, t0 + i * 2 * step + 0.012, midiHz(n) * 1.003, 0.035, 'square', d);
+    }
+    // drums
+    const kicks = secB ? [0, 3, 6, 8, 10, 14] : [0, 6, 8, 11];
+    for (const k of kicks) { synthKick(L, t0 + k * step, 0.42, sr); synthKick(Rc, t0 + k * step, 0.42, sr); }
+    const snares = b === bars - 1 ? [4, 12, 13, 14, 15] : b % 4 === 3 ? [4, 12, 14, 15] : [4, 12];
+    for (const sn of snares) {
+      synthNoise(L, t0 + sn * step, 0.13, 0.16, false, sr, seed += 17);
+      synthNoise(Rc, t0 + sn * step, 0.13, 0.16, false, sr, seed += 17);
+      synthWave(buf, L, t0 + sn * step, 196, 0.06, 'triangle', 0.06);
+      synthWave(buf, Rc, t0 + sn * step, 196, 0.06, 'triangle', 0.06);
+    }
+    for (let h = 0; h < 16; h += 2) {
+      const v = h % 4 === 2 ? 0.07 : 0.035;
+      synthNoise(L, t0 + h * step, 0.03, v, true, sr, seed += 31);
+      synthNoise(Rc, t0 + h * step, 0.03, v * 0.8, true, sr, seed += 31);
+    }
+  }
+  for (let i = 0; i < L.length; i++) { L[i] = Math.tanh(L[i] * 1.2); Rc[i] = Math.tanh(Rc[i] * 1.2); }
+  return buf;
+}
+
+function startBgm() {
+  if (bgmSrc || muted) return;
+  const ctx = audio();
+  if (!bgmBuffer) bgmBuffer = renderBgmBuffer();
+  if (!bgmGain) {
+    bgmGain = ctx.createGain();
+    bgmGain.gain.value = 0.32;
+    bgmGain.connect(ctx.destination);
+  }
+  if (ctx.state === 'suspended') ctx.resume();
+  bgmSrc = ctx.createBufferSource();
+  bgmSrc.buffer = bgmBuffer;
+  bgmSrc.loop = true;
+  bgmSrc.connect(bgmGain);
+  bgmSrc.start();
+}
+
+function stopBgm() {
+  try { bgmSrc?.stop(); } catch { /* */ }
+  bgmSrc = null;
+}
 
 function updateHud() {
   const hp = Math.max(0, Math.min(player.maxHp, player.hp | 0));
-  const slots = 8;
-  const filled = Math.max(0, Math.min(slots, Math.ceil(hp * slots / player.maxHp)));
-  $('hp').textContent = '♥'.repeat(filled) + '♡'.repeat(slots - filled) + ` ${hp}/${player.maxHp}`;
+  const per = player.maxHp / HEART_SLOTS;
+  const filled = hp <= 0 ? 0 : Math.min(HEART_SLOTS, Math.ceil(hp / per));
+  $('hpHearts').textContent = '♥'.repeat(filled) + '♡'.repeat(HEART_SLOTS - filled);
+  $('hpVal').textContent = `${hp}/${player.maxHp}`;
   $('ammo').textContent = `${player.ammo} / ${player.reserve}`;
   $('herbs').textContent = `${player.herbs}`;
   $('cross').style.opacity = phase === 'play' ? '1' : '0.3';
@@ -543,13 +773,23 @@ function tryFire() {
   gun.rotation.x = -0.1;
   gunSlide.position.z = -0.24;
   ray.setFromCamera(new THREE.Vector2(0, 0), cam);
-  const hits = ray.intersectObjects(livingEnemies().map((e) => e.hit), false);
+  const hits = ray.intersectObjects(enemyHitMeshes(), false);
+  const wallHit = ray.intersectObjects(solids, false)[0];
+  if (hits[0] && wallHit && wallHit.distance < hits[0].distance) hits.length = 0;
   if (hits[0]) {
-    const e = enemies.find((x) => x.hit === hits[0].object && x.alive);
+    const e = findEnemyFromHit(hits[0].object);
     if (e) {
-      e.hp--;
-      e.flash = 0.2;
-      sfxHit();
+      const head = hits[0].object.userData?.hitZone === 'head';
+      const dmg = head ? 2 : 1;
+      e.hp -= dmg;
+      e.flash = head ? 0.35 : 0.2;
+      if (head) {
+        sfxHeadshot();
+        toast('🎯 ヘッドショット!');
+        headshotPop();
+        setRootEmissive(e.mesh, 1, 0.85, 0.35);
+        player.shake = 0.04;
+      } else sfxHit();
       if (e.hp <= 0) killEnemy(e);
     }
   }
@@ -560,7 +800,7 @@ function killEnemy(e) {
   e.alive = false;
   sfxDeath();
   toast(`☠ ${e.def.name} 撃破`);
-  setMeshEmissive(e.mesh, 1, 0.35, 0.2);
+  setRootEmissive(e.mesh, 1, 0.35, 0.2);
   setTimeout(() => {
     if (e.mesh) S.remove(e.mesh);
     e.mesh = null;
@@ -622,15 +862,14 @@ function updateEnemies(dt) {
     const spd = def.speed * dt;
 
     if (def.ranged) {
-      m.rotation.y = Math.atan2(toP.x, toP.z);
       e.shotCd = (e.shotCd ?? 0) - dt;
       dist = horizDistToPlayer(m);
       if (dist >= def.stop && dist <= def.range && e.shotCd <= 0) {
         e.shotCd = def.shotRate;
         if (Math.random() < 0.5) {
           damagePlayer(def.shotDmg, def.name);
-          setMeshEmissive(m, 0.9, 0.5, 0.9);
-          setTimeout(() => { if (e.alive) setMeshEmissive(m, 0, 0, 0); }, 80);
+          setRootEmissive(m, 0.9, 0.5, 0.9);
+          setTimeout(() => { if (e.alive) setRootEmissive(m, 0, 0, 0); }, 80);
         }
       }
       const ideal = def.ideal ?? 7.5;
@@ -660,11 +899,7 @@ function updateEnemies(dt) {
     }
 
     dist = clampHorizFromPlayer(m, def.stop);
-    m.position.y = 0;
-    e.walk += dt * (def.speed * 4 + 1.5);
-    const sw = Math.sin(e.walk) * 0.45;
-    if (e.limbs.ll) { e.limbs.ll.rotation.x = sw; e.limbs.rl.rotation.x = -sw; }
-    m.rotation.z = Math.sin(e.walk * 0.5) * 0.06;
+    m.position.y = m.userData.feetY ?? 0;
 
     if (dist <= def.melee) {
       e.touchAcc += def.touchDps * dt;
@@ -675,43 +910,44 @@ function updateEnemies(dt) {
     } else e.touchAcc = 0;
 
     e.flash = Math.max(0, e.flash - dt);
-    if (e.flash > 0) setMeshEmissive(m, 1, 0.5, 0.3);
-    else if (e.alive) setMeshEmissive(m, 0, 0, 0);
+    if (e.flash > 0) setRootEmissive(m, 1, 0.5, 0.3);
+    else if (e.alive) setRootEmissive(m, 0, 0, 0);
 
     m.position.x = clamp(m.position.x, -W / 2 + 0.5, W / 2 - 0.5);
     m.position.z = clamp(m.position.z, -D / 2 + 0.5, D / 2 - 0.5);
+    collideXZ(m.position, 0.4);
+    for (const o of enemies) {
+      if (o === e || !o.alive || !o.mesh) continue;
+      const ox = m.position.x - o.mesh.position.x, oz = m.position.z - o.mesh.position.z;
+      const od = Math.hypot(ox, oz);
+      if (od < 0.9 && od > 1e-4) { m.position.x += ox / od * (0.9 - od) * 0.5; m.position.z += oz / od * (0.9 - od) * 0.5; }
+    }
   }
 }
 
 function updatePickups(dt) {
   nearPickup = null;
+  let nearest = PICKUP_BTN_R + 1;
   for (const p of pickups) {
     if (!p.mesh) {
       p.timer -= dt;
       if (p.timer <= 0) spawnPickupSpot(p);
       continue;
     }
-    p.mesh.rotation.y += dt * 1.6;
-    p.mesh.position.y = p.baseY + 0.08 + Math.sin(performance.now() * 0.004 + p.x) * 0.06;
-    // horizontal (xz) distance only — camera is at y≈1.6, pickups sit on the floor
-    const hd = horizDistToPlayer(p.mesh);
-    if (hd < PICKUP_R) { collectPickup(p); continue; }
-    if (hd < PICKUP_PROMPT_R && (!nearPickup || hd < nearD)) { nearPickup = p; nearD = hd; }
+    p.mesh.rotation.y += dt * 0.8;
+    const h = horizDistXZ(player.pos.x, player.pos.z, p.x, p.z);
+    if (h < nearest) { nearest = h; nearPickup = p; }
+    if (phase === 'play' && h < PICKUP_R) collectPickup(p);
   }
   const btn = $('btnPick');
-  const label = nearPickup ? `✋ 拾う（${PICK_NAMES[nearPickup.kind]}）${'ontouchstart' in window ? '' : ' [F]'}` : '';
-  if (btn.dataset.label !== label) {
-    btn.dataset.label = label;
-    btn.textContent = label;
-    btn.style.display = nearPickup ? 'block' : 'none';
+  if (btn) {
+    const show = phase === 'play' && nearPickup?.mesh && nearest <= PICKUP_BTN_R;
+    btn.style.display = show ? 'block' : 'none';
+    if (show) {
+      const labels = { ammo: '📦 弾薬取得', herb: '🌿 回復草', medkit: '➕ 救急箱' };
+      btn.textContent = labels[nearPickup.kind] || '取得';
+    }
   }
-}
-const PICK_NAMES = { ammo: '弾薬箱', herb: '回復草', medkit: '救急箱' };
-let nearPickup = null, nearD = 0;
-function pickNearest() {
-  if (phase !== 'play' || !nearPickup?.mesh) return;
-  collectPickup(nearPickup);
-  nearPickup = null;
 }
 
 function updatePlayer(dt) {
@@ -726,6 +962,7 @@ function updatePlayer(dt) {
   const vz = fz * (move.z * player.speed * dt) + rz * (move.x * player.speed * dt);
   player.pos.x = clamp(player.pos.x + vx, -W / 2 + 0.35, W / 2 - 0.35);
   player.pos.z = clamp(player.pos.z + vz, -D / 2 + 0.35, D / 2 - 0.35);
+  collideXZ(player.pos, 0.35);
 
   if (player.reloading) {
     player.reloadT -= dt;
@@ -834,7 +1071,7 @@ window.addEventListener('keydown', (e) => {
   keys.add(e.code);
   if (e.code === 'KeyR') startReload();
   if (e.code === 'KeyE') useHerb();
-  if (e.code === 'KeyF') pickNearest();
+  if (e.code === 'KeyF') tryCollectNearPickup();
   if (e.code === 'KeyM') {
     muted = !muted;
     localStorage.setItem('fps-mute', muted ? '1' : '0');
@@ -884,7 +1121,7 @@ function startRun() {
   player.reloading = false;
   player.hurtI = 0;
   player.shake = 0;
-  player.pos.set(0, 1.6, 6);
+  player.pos.set(0, 1.6, 9);
   player.yaw = 0;
   player.pitch = 0;
   wave = 1;
@@ -896,8 +1133,8 @@ function startRun() {
 
 $('btnStart').onclick = startRun;
 $('btnReload').onclick = (e) => { e.stopPropagation(); startReload(); };
-$('btnPick').onclick = (e) => { e.stopPropagation(); pickNearest(); };
 $('btnHerb').onclick = (e) => { e.stopPropagation(); useHerb(); };
+$('btnPick').onclick = (e) => { e.stopPropagation(); tryCollectNearPickup(); };
 $('muteBtn').onclick = () => {
   muted = !muted;
   localStorage.setItem('fps-mute', muted ? '1' : '0');
