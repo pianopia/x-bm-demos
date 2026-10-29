@@ -8,6 +8,18 @@ export const MATCH_PLAYERS = 4;
 
 const flagR = colTex('#b23a2e', 0.12);
 
+/** MeshLambert astronauts need real THREE lights (PS1 uLP uniforms don't affect them). */
+function addSceneLights(scene, moonDir) {
+  scene.add(new THREE.AmbientLight(0xffffff, 0.85));
+  const dir = moonDir.clone().normalize();
+  const key = new THREE.DirectionalLight(0xfff2e0, 1.25);
+  key.position.copy(dir).multiplyScalar(48);
+  scene.add(key);
+  const fill = new THREE.DirectionalLight(0xb8c8ff, 0.4);
+  fill.position.set(-5, 8, 10);
+  scene.add(fill);
+}
+
 function addSky(scene, tex, fogC) {
   const geo = new THREE.SphereGeometry(120, 24, 16);
   geo.scale(-1, 1, 1);
@@ -103,6 +115,7 @@ export function buildArena(scene, tex, rocksTemplate) {
   U.uAmb.value.set(0.06, 0.062, 0.08);
   U.uOutZ.value = 80;
   U.uFogD.value = 0.011;
+  addSceneLights(scene, U.uMoonDir.value);
 
   const lights = [
     { pos: new THREE.Vector3(-6, 14, -4), col: new THREE.Vector3(2.8, 2.6, 2.1) },
@@ -140,6 +153,7 @@ export function buildLobbySpace(scene, tex) {
   U.uMoonC.value.set(0.35, 0.38, 0.55);
   U.uAmb.value.set(0.045, 0.048, 0.065);
   U.uFogD.value = 0.005;
+  addSceneLights(scene, U.uMoonDir.value);
   U.uLP.value[0].set(-4, 6, 8);
   U.uLC.value[0].set(2.0, 1.9, 1.65);
   U.uLP.value[1].set(6, 3, -6);
