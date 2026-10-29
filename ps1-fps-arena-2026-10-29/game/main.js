@@ -41,15 +41,15 @@ const player = {
 
 const ENEMY_TYPES = {
   tank: {
-    name: '重装甲', hp: 6, speed: 1.15, touchDps: 22, color: T.iron,
+    name: '重装甲', hp: 6, speed: 0.8, touchDps: 22, color: T.iron,
     geo: () => new THREE.BoxGeometry(1.15, 1.25, 1.0, 2, 2, 2),
   },
   runner: {
-    name: 'ランナー', hp: 2, speed: 3.6, touchDps: 12, color: T.target,
+    name: 'ランナー', hp: 2, speed: 1.6, touchDps: 12, color: T.target,
     geo: () => new THREE.BoxGeometry(0.65, 0.95, 0.45, 2, 2, 1),
   },
   sniper: {
-    name: '狙撃兵', hp: 3, speed: 1.6, touchDps: 4, color: T.scout,
+    name: '狙撃兵', hp: 3, speed: 1.0, touchDps: 4, color: T.scout,
     geo: () => new THREE.BoxGeometry(0.55, 1.75, 0.45, 2, 3, 1),
     ranged: true, range: 11, shotCd: 0, shotRate: 1.35, shotDmg: 1,
   },
@@ -503,13 +503,25 @@ function updateEnemies(dt) {
           setTimeout(() => { if (e.alive) setMeshEmissive(m, 0, 0, 0); }, 80);
         }
       }
-      if (dist > 4) m.position.addScaledVector(toP, e.def.speed * dt);
+      // snipers hold 4.5–7m: approach if far, back off if close
+      if (dist > 7) m.position.addScaledVector(toP, e.def.speed * dt);
+      else if (dist < 4.5) m.position.addScaledVector(toP, -e.def.speed * dt);
+      m.rotation.y = Math.atan2(toP.x, toP.z);
     } else {
-      m.position.addScaledVector(toP, e.def.speed * dt);
+      const STOP = 1.5;
+      if (dist > STOP) m.position.addScaledVector(toP, Math.min(e.def.speed * dt, dist - STOP));
+      else if (dist < STOP - 0.1) m.position.addScaledVector(toP, -(STOP - dist) * Math.min(1, 6 * dt));
+      else { // slight orbit while attacking
+        const s = (e.orbitDir ||= Math.random() < 0.5 ? -1 : 1);
+        m.position.x += -toP.z * s * 0.35 * dt; m.position.z += toP.x * s * 0.35 * dt;
+      }
       m.rotation.y = Math.atan2(toP.x, toP.z);
     }
+    // hard floor: never inside 1.3m of the player
+    { const dx = m.position.x - player.pos.x, dz = m.position.z - player.pos.z, d = Math.hypot(dx, dz) || 0.001;
+      if (d < 1.3) { m.position.x = player.pos.x + dx / d * 1.3; m.position.z = player.pos.z + dz / d * 1.3; } }
 
-    if (dist < 1.15) {
+    if (!e.def.ranged && dist < 1.75) {
       e.touchAcc = (e.touchAcc || 0) + e.def.touchDps * dt;
       if (e.touchAcc >= 9 && player.hurtI <= 0) {
         e.touchAcc = 0;
