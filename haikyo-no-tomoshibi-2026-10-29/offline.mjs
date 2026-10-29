@@ -14,6 +14,7 @@ __export(state_exports, {
   SAVE_KEY: () => SAVE_KEY,
   addItem: () => addItem,
   flag: () => flag,
+  flagVisible: () => flagVisible,
   hasItem: () => hasItem,
   hasSave: () => hasSave,
   hint: () => hint,
@@ -21,6 +22,7 @@ __export(state_exports, {
   objective: () => objective,
   onChange: () => onChange,
   onFlag: () => onFlag,
+  questVisible: () => questVisible,
   removeItem: () => removeItem,
   reset: () => reset,
   save: () => save,
@@ -125,6 +127,14 @@ function reset() {
   } catch (e) {
   }
   emit();
+}
+function questVisible(flagKey, f = S.flags) {
+  if (flagKey === "gotKey") return !!f.brazierLit || !!f.gotKey;
+  return true;
+}
+function flagVisible(flagKey, f = S.flags) {
+  if (flagKey === "gotKey") return !!f.brazierLit || !!f.gotKey;
+  return true;
 }
 function objective(f = S.flags) {
   if (f.cleared) return "\u796D\u58C7\u306B\u706F\u304C\u3068\u3082\u3063\u305F \u2014 \u30AF\u30EA\u30A2\uFF01";
@@ -20975,6 +20985,7 @@ function buildWorld(scene2) {
     const p = find(ch);
     const g = new Group();
     g.position.copy(p).setY(0.55);
+    g.visible = false;
     scene2.add(g);
     build(g);
     const glow = add2(new OctahedronGeometry(0.06), mFlame, new Vector3(0, 0.5, 0), [0, 0, 0], g);
@@ -21027,10 +21038,12 @@ function buildWorld(scene2) {
     W2.o.crystal.position.y = 1.9 + Math.sin(t2 * 2) * 0.08;
     W2.o.crystal.material.uniforms.uEmi.value.setRGB(flags.cleared ? 0.6 : 0.1, flags.cleared ? 1 : 0.3, flags.cleared ? 1.4 : 0.45);
     for (const p of W2.pickups) {
-      const vis = !flags[p.flag] && (!p.needs || flags[p.needs]);
+      const unlocked = !p.needs || !!flags[p.needs];
+      const vis = !flags[p.flag] && unlocked;
       p.g.visible = vis;
-      p.g.rotation.y += dt * 1.6;
-      p.g.position.y = 0.55 + Math.sin(t2 * 2.4 + p.pos.x) * 0.08;
+      if (p.glow) p.glow.visible = vis;
+      p.g.position.y = vis ? 0.55 + Math.sin(t2 * 2.4 + p.pos.x) * 0.08 : 0.55;
+      if (vis) p.g.rotation.y += dt * 1.6;
     }
     for (let i = W2.shards.length - 1; i >= 0; i--) {
       const s = W2.shards[i];
@@ -21744,6 +21757,67 @@ function mountUI(btn, slider) {
   for (const ev of ["pointerdown", "keydown", "touchend"]) addEventListener(ev, go, { capture: true, passive: true });
 }
 
+// assets/game/debug.js
+var DEBUG_KEY = "haikyo-debug-v1";
+function isDebug() {
+  try {
+    if (new URLSearchParams(location.search).get("debug") === "1") return true;
+    if (localStorage.getItem(DEBUG_KEY) === "1") return true;
+  } catch (_) {
+  }
+  return document.body?.classList.contains("debug-on");
+}
+function setDebug(on) {
+  try {
+    if (on) localStorage.setItem(DEBUG_KEY, "1");
+    else localStorage.removeItem(DEBUG_KEY);
+  } catch (_) {
+  }
+  document.body?.classList.toggle("debug-on", !!on);
+  document.getElementById("debugPanel")?.classList.toggle("show", !!on);
+}
+function applyDebugUi() {
+  if (isDebug()) setDebug(true);
+}
+function bindTitleDebugTap(el) {
+  if (!el) return;
+  let n = 0;
+  let t2 = 0;
+  el.addEventListener("click", () => {
+    const now2 = Date.now();
+    n = now2 - t2 < 800 ? n + 1 : 1;
+    t2 = now2;
+    if (n >= 5) {
+      n = 0;
+      setDebug(true);
+      toastDebug?.("\u30C7\u30D0\u30C3\u30B0\u30E1\u30CB\u30E5\u30FC\u3092\u6709\u52B9\u306B\u3057\u305F");
+    }
+  });
+}
+var toastDebug = null;
+function setDebugToast(fn) {
+  toastDebug = fn;
+}
+function bindCornerDebugHold() {
+  const hit = document.getElementById("debugCorner");
+  if (!hit) return;
+  let timer = null;
+  const arm = () => {
+    timer = setTimeout(() => {
+      setDebug(!isDebug());
+      toastDebug?.(isDebug() ? "\u30C7\u30D0\u30C3\u30B0 ON" : "\u30C7\u30D0\u30C3\u30B0 OFF");
+    }, 1200);
+  };
+  const cancel = () => {
+    clearTimeout(timer);
+    timer = null;
+  };
+  hit.addEventListener("pointerdown", arm);
+  hit.addEventListener("pointerup", cancel);
+  hit.addEventListener("pointerleave", cancel);
+  hit.addEventListener("pointercancel", cancel);
+}
+
 // assets/game/game.js
 var { S: S2, ITEMS: ITEMS2 } = state_exports;
 var $2 = (id) => document.getElementById(id);
@@ -21903,7 +21977,8 @@ function renderInv() {
   $2("invDesc").textContent = cur3 ? itemDesc(cur3.id) : "\u30A2\u30A4\u30C6\u30E0\u3092\u62FE\u3046\u3068\u3053\u3053\u306B\u4E26\u3076\u3002";
   const now2 = objective();
   let foundNow = false;
-  $2("quest").innerHTML = QUEST.map(([k, label]) => {
+  const quests = QUEST.filter(([k]) => questVisible(k));
+  $2("quest").innerHTML = quests.map(([k, label]) => {
     const done = flag(k);
     let cls = done ? "done" : "";
     if (!done && !foundNow) {
@@ -21912,7 +21987,7 @@ function renderInv() {
     }
     return `<div class="${cls}">${done ? "\u2714" : cls === "now" ? "\u25B6" : "\u30FB"} ${label}</div>`;
   }).join("") + `<div class="now" style="margin-top:4px">\u76EE\u7684: ${now2}</div>`;
-  $2("flags").innerHTML = FLAG_KEYS.map((k) => `<span class="${flag(k) ? "on" : ""}">${k}</span>`).join("");
+  $2("flags").innerHTML = FLAG_KEYS.filter((k) => flagVisible(k)).map((k) => `<span class="${flag(k) ? "on" : ""}">${k}</span>`).join("");
 }
 function openInv() {
   if (mode !== "play" || isOpen()) return;
@@ -22134,12 +22209,13 @@ function look(dx, dy) {
   camPitch = Math.max(-0.25, Math.min(1.1, camPitch + dy * 22e-4));
 }
 function cycleMode() {
+  if (!isDebug()) return;
   const ks = Object.keys(MODES);
   renderMode = ks[(ks.indexOf(renderMode) + 1) % ks.length];
   $2("modeBtn").textContent = MODES[renderMode];
   toast(`\u63CF\u753B: ${MODES[renderMode]}`);
 }
-$2("modeBtn").onclick = cycleMode;
+$2("modeBtn")?.addEventListener("click", cycleMode);
 function handleKey(code, e) {
   if (mode === "title") {
     if (code === "Enter") ($2("contBtn").style.display !== "none" ? $2("contBtn") : $2("newBtn")).click();
@@ -22183,7 +22259,7 @@ function handleKey(code, e) {
   if (code === "KeyE") interact();
   if (code === "KeyF") attack();
   if (code === "KeyI" || code === "Tab") openInv();
-  if (code === "KeyP") cycleMode();
+  if (code === "KeyP" && isDebug()) cycleMode();
   if (code === "KeyM") $2("sndBtn").click();
 }
 addEventListener("keydown", (e) => {
@@ -22549,6 +22625,16 @@ window.__game = {
   }
 };
 if (isRnShell()) document.body.classList.add("rn-shell");
+setDebugToast(toast);
+applyDebugUi();
+bindTitleDebugTap(document.querySelector("#title .sub"));
+bindCornerDebugHold();
+$2("dbgRender")?.addEventListener("click", () => {
+  cycleMode();
+});
+$2("dbgClose")?.addEventListener("click", () => {
+  document.getElementById("debugPanel")?.classList.remove("show");
+});
 markGameReady();
 /**
  * @license

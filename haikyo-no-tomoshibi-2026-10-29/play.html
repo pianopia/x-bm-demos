@@ -58,7 +58,11 @@ body.touch #touch{display:block}
 #pause h3{margin:0 0 8px;color:#ffd27a;font-size:22px}
 #pause .sub{color:#c9b89a;margin-bottom:14px}
 #pause button{display:block;width:100%;margin:6px 0;font-size:16px;padding:8px}
-#menuBtn{font-size:13px;padding:4px 8px}
+body.debug-on .debug-only{display:inline-block!important}
+body.debug-on #tbtn .debug-only{display:block!important}
+.debug-only{display:none!important}
+#debugCorner{position:fixed;left:0;bottom:0;width:48px;height:48px;opacity:0;z-index:5;touch-action:none}
+#debugPanel .box{max-width:360px}
 body:not(.rn-shell) #menuBtn{display:none}
 body.rn-shell .rn-only-hint{display:block}
 #cross{position:fixed;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:#fff8;pointer-events:none;display:none}
@@ -68,7 +72,7 @@ body.rn-shell .rn-only-hint{display:block}
 @media(max-width:640px){#vol,.hideS{display:none}}
 </style></head><body>
 <div id="hud"><div id="hp"></div><div id="obj" class="panel"><small>目的</small><span id="objText"></span></div></div>
-<div id="topR"><button id="menuBtn" title="メニュー（Esc）">メニュー</button><button id="sndBtn" title="BGM/効果音 ON/OFF（M）">♪ ON</button><input id="vol" type="range" min="0" max="100" title="音量"><button id="modeBtn" title="P キー">PS1＋バウンス</button><button id="invBtn" title="I / Tab">持ち物</button></div>
+<div id="topR"><button id="menuBtn" title="メニュー（Esc）">メニュー</button><button id="sndBtn" title="BGM/効果音 ON/OFF（M）">♪ ON</button><input id="vol" type="range" min="0" max="100" title="音量"><button id="modeBtn" class="debug-only" title="P キー（デバッグ）">PS1＋バウンス</button><button id="invBtn" title="I / Tab">持ち物</button></div>
 <div id="prompt" class="panel"></div>
 <div id="toasts"></div>
 <div id="flaglog"></div>
@@ -102,6 +106,13 @@ body.rn-shell .rn-only-hint{display:block}
   <button id="pauseTitle">メニューに戻る</button>
   <small class="rn-only-hint">セーブは自動で保存されます。</small>
 </div></div>
-<div id="touch"><div id="joy"><div id="joyK"></div></div><div id="tbtn"><button data-k="Menu">☰</button><button data-k="KeyI">持</button><button data-k="KeyE">E</button><button data-k="KeyP">描</button><button data-k="KeyF">F</button></div></div>
+<div id="touch"><div id="joy"><div id="joyK"></div></div><div id="tbtn"><button data-k="Menu">☰</button><button data-k="KeyI">持</button><button data-k="KeyE">E</button><button data-k="KeyP" class="debug-only">描</button><button data-k="KeyF">F</button></div></div>
+<div id="debugCorner" title=""></div>
+<div id="debugPanel" class="overlay"><div class="box panel pause-box">
+  <h3 class="px">デバッグ</h3>
+  <button id="dbgRender" type="button">描画モード切替（P）</button>
+  <button id="dbgClose" type="button">閉じる</button>
+  <small>?debug=1 またはタイトル副題5回タップ</small>
+</div></div>
 <script type="module" src="./offline.mjs"></script>
 </body></html>
