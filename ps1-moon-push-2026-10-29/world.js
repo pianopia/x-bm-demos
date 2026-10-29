@@ -11,15 +11,34 @@ const flagR = colTex('#b23a2e', 0.12);
 function addSky(scene, tex, fogC) {
   const geo = new THREE.SphereGeometry(120, 24, 16);
   geo.scale(-1, 1, 1);
-  const milky = new THREE.Mesh(geo, M(tex.milky, [1, 1]));
+  const milky = new THREE.Mesh(
+    geo,
+    new THREE.MeshBasicMaterial({
+      map: tex.milky,
+      side: THREE.BackSide,
+      depthWrite: false,
+      fog: false,
+    }),
+  );
   milky.frustumCulled = false;
+  milky.renderOrder = -10;
   scene.add(milky);
   const starsGeo = new THREE.SphereGeometry(118, 32, 20);
   starsGeo.scale(-1, 1, 1);
-  const stars = new THREE.Mesh(starsGeo, M(tex.stars, [2, 2]));
-  stars.material.transparent = true;
-  stars.material.depthWrite = false;
+  const stars = new THREE.Mesh(
+    starsGeo,
+    new THREE.MeshBasicMaterial({
+      map: tex.stars,
+      side: THREE.BackSide,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+      fog: false,
+      blending: THREE.AdditiveBlending,
+    }),
+  );
   stars.frustumCulled = false;
+  stars.renderOrder = -9;
   scene.add(stars);
   U.uFogC.value.copy(fogC);
 }
@@ -141,6 +160,7 @@ export function attachLobbyFloaters(floaters, group, spawnFn) {
     f.g.position.copy(f.base);
     group.add(f.g);
     rig.play('float', 0);
+    rig.mixer.update(0);
   }
 }
 

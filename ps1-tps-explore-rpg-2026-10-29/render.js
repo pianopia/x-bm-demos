@@ -111,9 +111,16 @@ export function createPipeline(R) {
   function render(S, cam, mode, fade = 0) {
     const low = mode !== 'clean';
     setPass(low ? 1 : 0, mode === 'ps1' ? 0 : 1);
-    const rt = low ? rtLow : rtClean; R.setRenderTarget(rt); R.render(S, cam);
-    post.uniforms.tLow.value = rt.texture; post.uniforms.uMode.value = low ? 1 : 0; post.uniforms.uLowRes.value.copy(U.uRes.value); post.uniforms.uFade.value = fade;
-    R.setRenderTarget(null); R.render(PS, PC);
+    const rt = low ? rtLow : rtClean;
+    post.uniforms.tLow.value = null;
+    R.setRenderTarget(rt);
+    R.render(S, cam);
+    post.uniforms.tLow.value = rt.texture;
+    post.uniforms.uMode.value = low ? 1 : 0;
+    post.uniforms.uLowRes.value.copy(U.uRes.value);
+    post.uniforms.uFade.value = fade;
+    R.setRenderTarget(null);
+    R.render(PS, PC);
   }
   resize();
   return { resize, render, setRes(h) { resH = h; resize(); } };
