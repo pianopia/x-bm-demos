@@ -4,6 +4,21 @@
  "github": "https://github.com/pianopia/x-bm-demos",
  "demos": [
   {
+   "id": "ps1-moon-push-2026-10-29",
+   "title": "PS1 Moon Push (online sumo)",
+   "date": "2026-10-29",
+   "path": "./ps1-moon-push-2026-10-29/",
+   "tags": [
+    "BELENUS",
+    "three.js",
+    "PS1",
+    "multiplayer",
+    "game"
+   ],
+   "blurb": "StarFight着想の月面押し合い。PS1風look（低解像度・頂点スナップ）＋ EDEN2 realtime `/moonpush` キュー（`?ws=` で変更）。WS不可時は offline practice（ボット）。",
+   "source": ""
+  },
+  {
    "id": "haikyo-no-tomoshibi-2026-10-29",
    "title": "廃墟の灯火 (Expo web-play)",
    "date": "2026-10-29",
