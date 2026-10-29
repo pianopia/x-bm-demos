@@ -41,17 +41,20 @@ const player = {
 
 const ENEMY_TYPES = {
   tank: {
-    name: '重装甲', hp: 6, speed: 0.8, touchDps: 22, color: T.iron,
-    geo: () => new THREE.BoxGeometry(1.15, 1.25, 1.0, 2, 2, 2),
+    name: '重装甲', hp: 6, touchDps: 18, color: T.iron,
+    speed: 0.72, stop: 1.55, melee: 2.05,
+    geo: () => new THREE.BoxGeometry(1.15, 1.4, 1.0, 2, 2, 2),
   },
   runner: {
-    name: 'ランナー', hp: 2, speed: 1.6, touchDps: 12, color: T.target,
-    geo: () => new THREE.BoxGeometry(0.65, 0.95, 0.45, 2, 2, 1),
+    name: 'ランナー', hp: 2, touchDps: 10, color: T.target,
+    speed: 2.05, stop: 1.35, melee: 1.85,
+    geo: () => new THREE.BoxGeometry(0.7, 1.35, 0.5, 2, 2, 1),
   },
   sniper: {
-    name: '狙撃兵', hp: 3, speed: 1.0, touchDps: 4, color: T.scout,
-    geo: () => new THREE.BoxGeometry(0.55, 1.75, 0.45, 2, 3, 1),
-    ranged: true, range: 11, shotCd: 0, shotRate: 1.35, shotDmg: 1,
+    name: '狙撃兵', hp: 3, touchDps: 3, color: T.scout,
+    speed: 0.88, stop: 5.5, melee: 2.4, ideal: 7.5,
+    geo: () => new THREE.BoxGeometry(0.55, 1.85, 0.45, 2, 3, 1),
+    ranged: true, range: 12, shotRate: 1.45, shotDmg: 1,
   },
 };
 
@@ -234,15 +237,13 @@ function collectPickup(p) {
 function spawnEnemy(typeKey, x, z) {
   const def = ENEMY_TYPES[typeKey];
   const mesh = new THREE.Mesh(def.geo(), M(def.color, [1, 1], 0));
-  mesh.position.set(x, mesh.geometry.parameters?.height ? mesh.geometry.parameters.height * 0.5 : 0.7, z);
-  if (typeKey === 'tank') mesh.position.y = 0.62;
-  if (typeKey === 'runner') mesh.position.y = 0.48;
-  if (typeKey === 'sniper') mesh.position.y = 0.88;
+  const h = mesh.geometry.parameters.height;
+  mesh.position.set(x, h * 0.5, z);
   S.add(mesh);
   if (fallbackMode) meshToLambert(mesh);
   const e = {
     type: typeKey, def, mesh, hp: def.hp, maxHp: def.hp, flash: 0, alive: true,
-    shotCd: 0, wander: Math.random() * Math.PI * 2,
+    shotCd: 0, wander: Math.random() * Math.PI * 2, touchAcc: 0,
   };
   enemies.push(e);
   return e;
@@ -484,48 +485,79 @@ function startReload() {
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
+function horizDistToPlayer(m) {
+  return Math.hypot(m.position.x - player.pos.x, m.position.z - player.pos.z);
+}
+
+function clampHorizFromPlayer(m, minD) {
+  const dx = m.position.x - player.pos.x;
+  const dz = m.position.z - player.pos.z;
+  const h = Math.hypot(dx, dz);
+  if (h < minD && h > 1e-4) {
+    const s = minD / h;
+    m.position.x = player.pos.x + dx * s;
+    m.position.z = player.pos.z + dz * s;
+  }
+  return Math.hypot(m.position.x - player.pos.x, m.position.z - player.pos.z);
+}
+
 function updateEnemies(dt) {
   for (const e of enemies) {
     if (!e.alive || !e.mesh) continue;
     const m = e.mesh;
-    const toP = player.pos.clone().sub(m.position);
-    toP.y = 0;
-    const dist = toP.length();
-    if (dist > 0.05) toP.normalize();
+    const def = e.def;
+    const dx = player.pos.x - m.position.x;
+    const dz = player.pos.z - m.position.z;
+    let dist = Math.hypot(dx, dz);
+    const toP = dist > 1e-4 ? new THREE.Vector3(dx / dist, 0, dz / dist) : new THREE.Vector3(0, 0, 1);
+    const strafe = new THREE.Vector3(-toP.z, 0, toP.x);
+    const spd = def.speed * dt;
 
-    if (e.def.ranged) {
-      e.shotCd -= dt;
-      if (dist > 2.5 && dist < e.def.range && e.shotCd <= 0) {
-        e.shotCd = e.def.shotRate;
-        if (Math.random() < 0.55) {
-          damagePlayer(e.def.shotDmg, e.def.name);
+    if (def.ranged) {
+      e.shotCd = (e.shotCd ?? 0) - dt;
+      dist = horizDistToPlayer(m);
+      if (dist >= def.stop && dist <= def.range && e.shotCd <= 0) {
+        e.shotCd = def.shotRate;
+        if (Math.random() < 0.5) {
+          damagePlayer(def.shotDmg, def.name);
           setMeshEmissive(m, 0.9, 0.5, 0.9);
           setTimeout(() => { if (e.alive) setMeshEmissive(m, 0, 0, 0); }, 80);
         }
       }
-      // snipers hold 4.5–7m: approach if far, back off if close
-      if (dist > 7) m.position.addScaledVector(toP, e.def.speed * dt);
-      else if (dist < 4.5) m.position.addScaledVector(toP, -e.def.speed * dt);
-      m.rotation.y = Math.atan2(toP.x, toP.z);
-    } else {
-      const STOP = 1.5;
-      if (dist > STOP) m.position.addScaledVector(toP, Math.min(e.def.speed * dt, dist - STOP));
-      else if (dist < STOP - 0.1) m.position.addScaledVector(toP, -(STOP - dist) * Math.min(1, 6 * dt));
-      else { // slight orbit while attacking
-        const s = (e.orbitDir ||= Math.random() < 0.5 ? -1 : 1);
-        m.position.x += -toP.z * s * 0.35 * dt; m.position.z += toP.x * s * 0.35 * dt;
+      const ideal = def.ideal ?? 7.5;
+      if (dist < def.stop) {
+        m.position.addScaledVector(toP, -spd * 1.15);
+      } else if (dist > def.range) {
+        m.position.addScaledVector(toP, spd * 0.45);
+      } else if (dist > ideal + 0.6) {
+        m.position.addScaledVector(toP, spd * 0.35);
+      } else if (dist < ideal - 0.6) {
+        m.position.addScaledVector(toP, -spd * 0.45);
+      } else {
+        m.position.addScaledVector(strafe, Math.sin(e.wander) * spd * 0.5);
+        e.wander += dt * 1.1;
       }
+    } else {
       m.rotation.y = Math.atan2(toP.x, toP.z);
+      dist = horizDistToPlayer(m);
+      if (dist > def.stop + 0.08) {
+        m.position.addScaledVector(toP, spd);
+      } else if (dist < def.stop - 0.12) {
+        m.position.addScaledVector(toP, -spd * 1.25);
+      } else {
+        m.position.addScaledVector(strafe, Math.sin(e.wander) * spd * 0.65);
+        e.wander += dt * 1.4;
+      }
     }
-    // hard floor: never inside 1.3m of the player
-    { const dx = m.position.x - player.pos.x, dz = m.position.z - player.pos.z, d = Math.hypot(dx, dz) || 0.001;
-      if (d < 1.3) { m.position.x = player.pos.x + dx / d * 1.3; m.position.z = player.pos.z + dz / d * 1.3; } }
 
-    if (!e.def.ranged && dist < 1.75) {
-      e.touchAcc = (e.touchAcc || 0) + e.def.touchDps * dt;
-      if (e.touchAcc >= 9 && player.hurtI <= 0) {
+    dist = clampHorizFromPlayer(m, def.stop);
+    m.position.y = (m.geometry.parameters.height ?? 1) * 0.5;
+
+    if (dist <= def.melee) {
+      e.touchAcc += def.touchDps * dt;
+      if (e.touchAcc >= 10 && player.hurtI <= 0) {
         e.touchAcc = 0;
-        damagePlayer(1, e.def.name);
+        damagePlayer(1, def.name);
       }
     } else e.touchAcc = 0;
 
