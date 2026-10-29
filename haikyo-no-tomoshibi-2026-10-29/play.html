@@ -6,24 +6,24 @@ canvas{display:block;touch-action:none;image-rendering:pixelated}
 .px{font-family:"DotGothic16","Hiragino Kaku Gothic ProN",monospace;letter-spacing:.04em}
 a{color:#9cc8ff}
 .panel{background:#0b0d12e8;border:2px solid #6b5a3a;box-shadow:0 0 0 2px #000,inset 0 0 0 1px #2a2418;border-radius:4px}
-#hud{position:fixed;left:10px;top:52px;pointer-events:none;max-width:min(420px,calc(100vw - 20px))}
+#topLeft{position:fixed;left:10px;top:10px;z-index:3;display:flex;flex-direction:column;align-items:flex-start;gap:8px;max-width:min(440px,calc(100vw - 130px));pointer-events:none}
+#hud{position:relative;top:auto;left:auto;pointer-events:none;max-width:100%}
 #hp{font-size:20px;letter-spacing:2px;text-shadow:0 2px 0 #000}
 #obj{margin-top:6px;padding:6px 10px;font-size:14px}
 #obj small{display:block;color:#c9a54a;font-size:11px}
-#topR{position:fixed;right:10px;top:10px;display:flex;gap:6px;align-items:center}
-#topAudio{position:fixed;left:10px;top:10px;display:flex;gap:6px;align-items:center;padding:4px 8px}
-#topAudio #menuBtn{font-size:13px;padding:4px 8px;margin:0}
-body:not(.rn-shell) #menuBtn{display:none}
+#topR{position:fixed;right:10px;top:10px;display:flex;gap:6px;align-items:center;z-index:3}
+#topAudio{position:relative;top:auto;left:auto;display:flex;gap:6px;align-items:center;padding:4px 8px;pointer-events:auto;flex-wrap:wrap;max-width:100%}
+#topAudio #menuBtn{font-size:13px;padding:4px 8px;margin:0;white-space:nowrap}
 button{font:inherit;color:#ece4d2;background:#231d14;border:2px solid #6b5a3a;border-radius:4px;padding:4px 10px;cursor:pointer}
 button:hover,button.sel{background:#4a3a20;border-color:#d8b35a}
 #prompt{position:fixed;left:50%;bottom:30%;transform:translateX(-50%);padding:5px 14px;display:none;pointer-events:none;white-space:nowrap}
 #prompt b{color:#ffd27a}
-#toasts{position:fixed;left:50%;top:70px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none}
+#toasts{position:fixed;left:50%;top:min(28%,140px);transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none;z-index:2}
 .toast{padding:5px 14px;animation:tf 3.2s forwards;white-space:nowrap}
 @keyframes tf{0%{opacity:0;transform:translateY(-6px)}8%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0}}
 #flaglog{position:fixed;right:10px;bottom:10px;font:11px ui-monospace,Menlo,monospace;color:#8fe3c0;text-align:right;pointer-events:none;text-shadow:0 1px 0 #000}
 #flaglog div{animation:tf 6s forwards}
-#dlg{position:fixed;left:50%;top:56px;bottom:auto;transform:translateX(-50%);width:min(720px,calc(100vw - 20px));padding:12px 16px 14px;display:none;cursor:pointer}
+#dlg{position:fixed;left:50%;top:max(56px,18vh);bottom:auto;transform:translateX(-50%);width:min(720px,calc(100vw - 20px));padding:12px 16px 14px;display:none;cursor:pointer;z-index:4}
 #dlg.show{display:block}
 #dlgWho{color:#ffd27a;font-weight:bold;margin-bottom:4px}
 #dlgText{min-height:3.2em;line-height:1.7;white-space:pre-wrap}
@@ -69,9 +69,13 @@ body.debug-on #tbtn .debug-only{display:block!important}
 #sndBtn.off{color:#8a7f6c;border-color:#3a3224}
 #vol{width:70px;accent-color:#d8b35a}
 @media(max-width:640px){#vol,.hideS{display:none}}
+body.rn-shell .rn-only-hint{display:block}
+#cross{position:fixed;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:#fff8;pointer-events:none;display:none}
 </style></head><body>
-<div id="hud"><div id="hp"></div><div id="obj" class="panel"><small>目的</small><span id="objText"></span></div></div>
+<div id="topLeft">
 <div id="topAudio" class="top-audio panel"><button id="menuBtn" title="メニュー（Esc）">メニュー</button><button id="sndBtn" title="BGM/効果音 ON/OFF（M）">♪ ON</button><input id="vol" type="range" min="0" max="100" title="音量"></div>
+<div id="hud"><div id="hp"></div><div id="obj" class="panel"><small>目的</small><span id="objText"></span></div></div>
+</div>
 <div id="topR"><button id="modeBtn" class="debug-only" title="P キー（デバッグ）">PS1＋バウンス</button><button id="invBtn" title="I / Tab">持ち物</button></div>
 <div id="prompt" class="panel"></div>
 <div id="toasts"></div>
@@ -106,7 +110,7 @@ body.debug-on #tbtn .debug-only{display:block!important}
   <button id="pauseTitle">メニューに戻る</button>
   <small class="rn-only-hint">セーブは自動で保存されます。</small>
 </div></div>
-<div id="touch"><div id="joy"><div id="joyK"></div></div><div id="tbtn"><button data-k="Menu">☰</button><button data-k="KeyE">E</button><button data-k="KeyP" class="debug-only">描</button><button data-k="KeyF">F</button></div></div>
+<div id="touch"><div id="joy"><div id="joyK"></div></div><div id="tbtn"><button data-k="KeyE">E</button><button data-k="KeyP" class="debug-only">描</button><button data-k="KeyF">F</button></div></div>
 <div id="debugCorner" title=""></div>
 <div id="debugPanel" class="overlay"><div class="box panel pause-box">
   <h3 class="px">デバッグ</h3>
