@@ -6,43 +6,40 @@
 <title>PS1 Moon Push — 月面すもう</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="./ui.css">
-<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.169.0/build/three.module.js"}}</script>
+<script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.169.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.169.0/examples/jsm/"}}</script>
 </head>
-<body>
+<body class="title">
 <div id="hud" class="panel">
-  <div class="px"><b>MOON PUSH</b> <span class="tag">PS1 lookdev × online</span></div>
+  <div class="px"><b>MOON PUSH</b> <span class="tag">PS1 × StarFight</span></div>
   <div class="row">
     <span id="timer">1:30</span>
     <span id="alive">生存 —</span>
     <span id="deaths">落下 0</span>
   </div>
-  <div id="status">宇宙ロビー — キューに入るとマッチング</div>
+  <div id="status">読込中…</div>
 </div>
 <div id="topR">
   <button id="sndBtn" type="button" title="BGM/効果音">♪ ON</button>
   <a href="../"><button>一覧</button></a>
-  <a href="../ps1-radiance-lite-2026-10-29/"><button>PS1描画</button></a>
 </div>
 <div id="banner" class="panel px"></div>
-<div id="lobby" class="panel"><div id="lobbyText">ロビー</div><small id="lobbySub"></small></div>
+<div id="lobby" class="panel"><span id="lobbyText">ロビー</span> <small id="lobbySub"></small></div>
 <div id="result" class="panel"><div class="box panel">
   <h2 class="px">RESULT</h2>
   <ul id="scoreList"></ul>
   <button id="retryBtn">もう一度</button>
 </div></div>
 <div id="title">
-  <div class="box panel">
-    <h1 class="px">月面 PUSH</h1>
-    <div class="sub">4人低重力アリーナで押し合い。90秒間の落下回数バトル。</div>
-    <label>名前 <input id="nameIn" maxlength="16" placeholder="Astro"></label><br>
-    <button id="playBtn">キューに入る</button>
-    <div class="ctl">
-      <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移動（カメラ基準）　<kbd>Space</kbd> / タップ「押」　<kbd>M</kbd> ミュート<br>
-      オンライン: <code>wss://realtime.eden14.com/moonpush</code>（<code>?ws=</code> で変更）
-    </div>
-    <small>4人マッチ想定（EDEN2 サーバーは現状2人開始のことがあります）。12秒待っても人が集まらない場合は <b>NPC 3体</b> で4人開始。<br>
-    WS 未接続時も同様に4人練習。描画: <a href="../ps1-tps-explore-rpg-2026-10-29/">PS1 TPS</a> 系。</small>
+  <div id="titleBar" class="panel">
+    <span class="px logo">月面 PUSH</span>
+    <label class="nameLbl">名前<input id="nameIn" maxlength="16" placeholder="Astro"></label>
+    <button id="playBtn" type="button">キューに入る</button>
+    <button id="helpBtn" type="button" title="ヘルプ">?</button>
   </div>
+  <details id="titleHelp" class="panel">
+    <summary>操作・マッチ</summary>
+    <p><kbd>WASD</kbd> カメラ基準移動　<kbd>Space</kbd> 押し　<kbd>M</kbd> ミュート。4人マッチ、12秒でNPC補充。WS: <code>wss://realtime.eden14.com/moonpush</code></p>
+  </details>
 </div>
 <div id="touch">
   <div id="joy"><div id="joyK"></div></div>
