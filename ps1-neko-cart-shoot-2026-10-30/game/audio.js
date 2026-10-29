@@ -9,7 +9,6 @@ export function initAudio() {
     sfxGain = A.createGain(); sfxGain.gain.value = 0.55; sfxGain.connect(master);
     noiseBuf = A.createBuffer(1, A.sampleRate, A.sampleRate);
     const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    bufs.main = renderSong(SONGS.main); bufs.boss = renderSong(SONGS.boss);
   }
   if (A.state !== 'running') A.resume();
 }
@@ -17,7 +16,7 @@ export function setMuted(m) { muted = m; if (master) master.gain.value = m ? 0 :
 export function isMuted() { return muted; }
 export function playBgm(name) {
   if (!A) return; stopBgm(); curBgm = name;
-  bgmSrc = A.createBufferSource(); bgmSrc.buffer = bufs[name]; bgmSrc.loop = true; bgmSrc.connect(bgmGain); bgmSrc.start();
+  bgmSrc = A.createBufferSource(); bgmSrc.buffer = bufs[name] || (bufs[name] = renderSong(SONGS[name])); bgmSrc.loop = true; bgmSrc.connect(bgmGain); bgmSrc.start();
 }
 export function stopBgm() { if (bgmSrc) { try { bgmSrc.stop(); } catch (e) { } bgmSrc.disconnect(); bgmSrc = null; } }
 function duck() { if (!A) return; const t = A.currentTime; bgmGain.gain.cancelScheduledValues(t); bgmGain.gain.setValueAtTime(0.2, t); bgmGain.gain.linearRampToValueAtTime(0.3, t + 0.25); }
@@ -66,6 +65,11 @@ export const sfx = {
   roar() { tone('sawtooth', 140, 45, 0.9, 0.35); noise(0.7, 0.3, 300, 'lowpass'); nya(0.45, 0.25, 0.1); },
   boom() { noise(0.6, 0.6, 400, 'lowpass'); tone('square', 200, 30, 0.6, 0.3); },
   clear() { [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => tone('square', f, f, i === 6 ? 0.5 : 0.12, 0.18, i * 0.12)); },
+  select() { tone('square', 880, 880, 0.04, 0.14); tone('square', 1320, 1320, 0.06, 0.14, 0.04); },
+  bat() { tone('square', 2400, 1400, 0.05, 0.08); tone('square', 2600, 1600, 0.05, 0.07, 0.07); },
+  fire() { noise(0.25, 0.25, 900, 'bandpass'); tone('triangle', 300, 700, 0.2, 0.12); },
+  unlock() { [523, 784, 1047, 1568].forEach((f, i) => tone('square', f, f, 0.1, 0.16, i * 0.09)); noise(0.3, 0.12, 6000, 'highpass', 0.36); },
+  allclear() { [523, 523, 523, 659, 784, 659, 784, 1047, 988, 1047, 1319, 1568].forEach((f, i) => tone('square', f, f, i === 11 ? 0.8 : 0.13, 0.17, i * 0.14)); [262, 330, 392, 523].forEach((f, i) => tone('triangle', f, f, 0.5, 0.2, i * 0.42)); },
   over() { [392, 330, 262, 196].forEach((f, i) => tone('triangle', f, f * 0.98, 0.25, 0.25, i * 0.22)); },
 };
 
@@ -74,6 +78,14 @@ const SONGS = {
   // cheerful-spooky cart chase in C (16 bars)
   main: { bpm: 152, chords: [[48, 'M'], [45, 'm'], [41, 'M'], [43, 'M'], [48, 'M'], [45, 'm'], [38, 'm'], [43, 'M'], [41, 'M'], [43, 'M'], [40, 'm'], [45, 'm'], [41, 'M'], [43, 'M'], [48, 'M'], [43, 'M']] },
   // boss: minor, faster
+  // title: relaxed, bouncy
+  title: { bpm: 126, lead: 'title', chords: [[48, 'M'], [43, 'M'], [45, 'm'], [41, 'M'], [48, 'M'], [43, 'M'], [41, 'M'], [43, 'M']] },
+  // stage 2 night market: festival feel in F
+  market: { bpm: 160, lead: 'market', chords: [[41, 'M'], [43, 'm'], [45, 'm'], [41, 'M'], [46, 'M'], [45, 'm'], [43, 'm'], [48, 'M'], [41, 'M'], [43, 'm'], [45, 'm'], [50, 'm'], [46, 'M'], [48, 'M'], [41, 'M'], [48, 'M']] },
+  // stage 3 spooky night run (minor, driving)
+  night: { bpm: 164, minor: true, lead: 'night', chords: [[40, 'm'], [36, 'M'], [43, 'M'], [38, 'M'], [40, 'm'], [36, 'M'], [45, 'm'], [47, 'M'], [40, 'm'], [36, 'M'], [43, 'M'], [38, 'M'], [45, 'm'], [43, 'M'], [47, 'M'], [47, 'M']] },
+  // final boss: fastest
+  final: { bpm: 186, minor: true, chords: [[38, 'm'], [46, 'M'], [41, 'M'], [45, 'M'], [38, 'm'], [46, 'M'], [43, 'm'], [45, 'M'], [38, 'm'], [46, 'M'], [41, 'M'], [45, 'M'], [43, 'm'], [46, 'M'], [45, 'M'], [45, 'M']] },
   boss: { bpm: 172, minor: true, chords: [[45, 'm'], [41, 'M'], [43, 'M'], [40, 'M'], [45, 'm'], [41, 'M'], [38, 'm'], [40, 'M'], [45, 'm'], [41, 'M'], [43, 'M'], [40, 'M'], [38, 'm'], [41, 'M'], [40, 'M'], [40, 'M']] },
 };
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
@@ -84,6 +96,17 @@ const MOTIF_C = [2, 1, 0, 1, 2, null, 2, null, 3, null, 2, null, 0, -1, -1, null
 const MOTIF_END = [4, null, 3, null, 2, null, 1, null, 0, -1, -1, -1, -1, null, null, null];
 const BOSS_A = [0, 0, 3, 0, 4, 0, 3, 2, 0, 0, 3, 0, 5, 4, 3, 2];
 const BOSS_B = [5, -1, 4, -1, 3, -1, 2, 3, 4, -1, 3, 2, 1, -1, 0, -1];
+const TITLE_A = [0, null, null, 2, null, null, 1, null, 3, -1, -1, null, 2, null, null, null];
+const TITLE_B = [4, -1, null, 3, null, 2, null, 1, 0, -1, -1, -1, null, null, null, null];
+const MK_A = [0, 2, null, 1, 0, null, 3, null, 2, -1, null, 1, 0, null, 4, null];
+const MK_B = [4, null, 3, 4, null, 2, null, 3, 1, -1, -1, null, 0, null, 1, null];
+const NT_A = [0, null, 2, 0, 3, null, 2, null, 4, -1, 3, null, 2, 1, 0, null];
+const NT_B = [5, -1, -1, 4, 3, -1, 2, null, 1, 2, 3, null, 0, -1, -1, null];
+const LEADS = {
+  title: (b) => (b % 2 ? TITLE_B : TITLE_A),
+  market: (b, n) => (b === n - 1 ? MOTIF_END : b % 4 === 3 ? MK_B : MK_A),
+  night: (b) => (b % 4 === 3 ? NT_B : NT_A),
+};
 
 function renderSong(song) {
   const sr = 22050, spb = 60 / song.bpm, step = spb / 4, bars = song.chords.length;
@@ -106,7 +129,8 @@ function renderSong(song) {
     const bt = b * 16 * step;
     // lead motif
     let mot;
-    if (song.minor) mot = b % 4 === 3 ? BOSS_B : BOSS_A;
+    if (song.lead) mot = LEADS[song.lead](b, bars);
+    else if (song.minor) mot = b % 4 === 3 ? BOSS_B : BOSS_A;
     else mot = b === bars - 1 ? MOTIF_END : (b % 4 === 3 ? MOTIF_C : (Math.floor(b / 4) % 2 ? MOTIF_B : MOTIF_A));
     for (let i = 0; i < 16; i++) {
       const v = mot[i]; if (v == null || v < 0) continue;

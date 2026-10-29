@@ -19,7 +19,7 @@
     html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:system-ui,"Hiragino Sans","Noto Sans JP",sans-serif;touch-action:none;cursor:none}
     canvas{display:block;width:100%;height:100%;touch-action:none}
     button{cursor:pointer;font-family:inherit}
-    .ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,#3a1d48ee,#0c0710f4);color:#fbeaf6;z-index:20;gap:14px;cursor:default;text-align:center;padding:20px}
+    .ov{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:safe center;overflow-y:auto;background:radial-gradient(circle at 50% 40%,#3a1d48ee,#0c0710f4);color:#fbeaf6;z-index:20;gap:14px;cursor:default;text-align:center;padding:20px}
     .ov h1{margin:0;font-size:clamp(24px,6vw,40px);letter-spacing:.08em;color:#ffd6ef;text-shadow:3px 3px 0 #6a1d58,0 0 18px #ff8ad8}
     .ov .sub{margin:0;font-size:12px;letter-spacing:.3em;color:#ffcf6a}
     .ov p{margin:0;opacity:.85;font-size:14px;max-width:380px;line-height:1.7}
@@ -65,28 +65,53 @@
     .toast.show{opacity:1;transform:none}
     #result table{margin:4px auto;font-size:15px;border-collapse:collapse}#result td{padding:3px 12px}#result td:last-child{text-align:right;font-weight:800;color:#ffd65a}
     #rank{font-size:64px;font-weight:900;color:#ffd65a;text-shadow:4px 4px 0 #6a1d58;line-height:1}
+    #result{overflow:hidden}
+    #resStage{font-size:13px;color:#ffd6ef;letter-spacing:.1em}
+    #resMsg{font-size:14px;line-height:1.6;color:#ffe9a8;min-height:1em}#resMsg .rec{color:#ffd65a;font-size:16px}
+    #resBtns,.row{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+    #result.allclear{background:radial-gradient(circle at 50% 40%,#6a3a18ee,#12070af4)}
+    .conf{position:absolute;top:-12px;width:8px;height:12px;animation:fall 3s linear forwards;pointer-events:none}
+    @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
+    #select{justify-content:flex-start;overflow-y:auto;padding-top:28px}
+    #stageList{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;max-width:980px}
+    .stage{width:min(92vw,290px);text-align:left;padding:14px 16px;border-radius:14px;border:2px solid #b25a98;background:#2a1436e8;color:#fbeaf6;display:flex;flex-direction:column;gap:6px;box-shadow:0 4px 0 #5a1546}
+    .stage:not(.lock):hover{border-color:#ffd65a;transform:translateY(-2px)}
+    .stage.lock{opacity:.5;filter:grayscale(.8);cursor:not-allowed}
+    .stage .sn{font-size:12px;font-weight:900;letter-spacing:.2em;color:#ffcf6a}.stage .ok{color:#7aff9a;letter-spacing:.05em}
+    .stage .nm{font-size:20px;font-weight:900;color:#ffd6ef;text-shadow:2px 2px 0 #6a1d58}.stage .nm small{display:block;font-size:10px;letter-spacing:.3em;color:#c9a0d8;text-shadow:none}
+    .stage .bl{font-size:12.5px;line-height:1.55;opacity:.9}.stage .bs{font-size:11px;color:#ffb070}.stage .hi{font-size:12px;font-weight:800;color:#ffd65a}
+    #stageTag{font-size:0}
   </style>
 </head>
 <body>
   <div id="title" class="ov">
-    <div class="sub">PS1 · ARCADE GUN · ON-RAILS</div>
+    <div class="sub">PS1 · ARCADE GUN · ON-RAILS · 3 STAGES</div>
     <h1>ねこカート<br>シューター</h1>
-    <p>カートは自動で進む。キミは撃つだけ！<br>いたずら猫・おばけ猫を撃退して、月夜のかぼちゃ大王を倒そう。<br>赤い輪が縮みきる前に撃て。投げてくる魚や毛糸も撃ち落とせる。</p>
+    <p>カートは自動で進む。キミは <b>照準と射撃だけ</b>！<br>いたずら猫・おばけ猫をけちらして、3つのステージを走りぬけよう。<br>赤い輪が縮みきる前に撃て。投げてくる魚や毛糸も撃ち落とせる。</p>
     <p style="font-size:12px;opacity:.7">📱 タップ＝その場所を撃つ／ドラッグ照準／ジャイロ照準　🖱 マウス照準・クリック射撃・右クリック or R リロード</p>
-    <button type="button" id="btnGyroTitle" class="small">📱 ジャイロ照準を使う</button>
     <button type="button" id="btnStart" class="big blink">INSERT COIN ▶ START</button>
+    <div class="row"><button type="button" id="btnSelect" class="small">🗺 ステージセレクト</button><button type="button" id="btnGyroTitle" class="small">📱 ジャイロ照準を使う</button></div>
+    <p style="font-size:11px;opacity:.55">ステージをクリアすると次のステージが解放されるよ</p>
+  </div>
+  <div id="select" class="ov" style="display:none">
+    <div class="sub">STAGE SELECT</div>
+    <h1 style="font-size:clamp(20px,5vw,30px)">ステージをえらぶ</h1>
+    <div id="stageList"></div>
+    <button type="button" id="btnBack" class="small">◀ タイトルへ</button>
   </div>
   <div id="result" class="ov" style="display:none">
     <div class="sub" id="resSub">STAGE CLEAR</div>
+    <div id="resStage"></div>
     <div id="rank">S</div>
     <table id="resTable"></table>
-    <button type="button" id="btnRetry" class="big">もう一回 ▶</button>
+    <div id="resMsg"></div>
+    <div id="resBtns"></div>
   </div>
   <div id="topBtns"><button type="button" id="gyroBtn" aria-label="ジャイロ">📱</button><button type="button" id="centerBtn" aria-label="照準リセット" style="display:none">🎯</button><button type="button" id="muteBtn" aria-label="ミュート">🔊</button></div>
   <div id="hud">
     <div id="stats"><span id="hearts">♥♥♥♥♥</span><br>SCORE <span id="score">0</span><br><span id="combo"></span></div>
-    <div id="prog"><span id="secName">SECTION 1</span><div id="progBar"><div id="progFill"></div></div></div>
-    <div id="bossBar">ジャック・オ・ニャンタン<div><div id="bossFill"></div></div></div>
+    <div id="prog"><span id="stageTag"></span><span id="secName">STAGE 1</span><div id="progBar"><div id="progFill"></div></div></div>
+    <div id="bossBar"><span id="bossName">BOSS</span><div><div id="bossFill"></div></div></div>
     <div id="ammo">●●●●●●</div>
     <div id="reloadHint" class="blink">RELOAD!</div>
     <button type="button" id="btnReload">⟳ リロード</button>
