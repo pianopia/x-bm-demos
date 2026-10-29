@@ -2,6 +2,10 @@
  * EDEN2 moon-push WebSocket client.
  * Protocol: pianopia/EDEN2 realtime/MOONPUSH.md (welcome / lobby / countdown / state / result).
  * Override URL: ?ws=wss://host/path
+ *
+ * Input (unchanged): `{ type:"input", seq, move:{x,z}, push:boolean }` — move is world XZ;
+ * server MoonPushGame should apply cone/range impulse to targets + recoil (see offline.js PUSH/MOVE).
+ * State players should include vx/vz after knockback for client slide interpolation.
  */
 const FALLBACKS = [
   'wss://realtime.eden14.com/moonpush',

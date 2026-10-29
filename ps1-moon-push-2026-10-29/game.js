@@ -193,7 +193,7 @@ let lastCdBeep = -1;
 
 function syncBgm() {
   if (mode === 'title') aud.setBgm('off');
-  else if (phase === 'play') aud.setBgm('match');
+  else if (phase === 'play' || (phase === 'countdown' && view === 'arena')) aud.setBgm('match');
   else if (phase === 'result') aud.setBgm('off');
   else aud.setBgm('lobby');
 }
@@ -244,12 +244,14 @@ function showBanner(t) {
 function onMatchApproach() {
   goToArena();
   setPlayControls(false);
+  syncBgm();
 }
 
 function onMatchPlaying() {
   goToArena();
   setPlayControls(true);
   $('lobby').classList.remove('show');
+  syncBgm();
 }
 
 function updateLobbyUi() {
@@ -508,7 +510,9 @@ R.setAnimationLoop(() => {
         offline.input.x = lastMove.x;
         offline.input.z = lastMove.z;
       }
-      if (pushPulse) aud.sfx('push');
+      if (pushPulse) {
+        aud.sfx(offline.lastPushHit ? 'pushHit' : 'push');
+      }
       offline.input.push = pushPulse;
       pushPulse = false;
     }
