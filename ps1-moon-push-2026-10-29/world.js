@@ -4,12 +4,13 @@ import { U, T, M, colTex, computeBounce } from '../ps1-tps-explore-rpg-2026-10-2
 
 export const ARENA_R = 11.5;
 export const MATCH_SEC = 90;
+export const MATCH_PLAYERS = 4;
 
-const moonTex = colTex('#6a6660', 0.22);
-const regolith = colTex('#5a5752', 0.28);
-const suitW = colTex('#e8e6e0', 0.08);
-const suitA = colTex('#c4a882', 0.1);
-const visor = colTex('#1a3048', 0.05);
+const moonTex = colTex('#9a9590', 0.18);
+const regolith = colTex('#848078', 0.22);
+const suitW = colTex('#f2f0ea', 0.06);
+const suitA = colTex('#d4b892', 0.08);
+const visor = colTex('#2a4868', 0.04);
 const flagR = colTex('#b23a2e', 0.12);
 
 export function buildArena(scene) {
@@ -67,14 +68,16 @@ export function buildArena(scene) {
   g.add(cloth);
 
   U.uMoonDir.value.set(-0.45, 0.85, 0.35).normalize();
-  U.uMoonC.value.set(0.35, 0.38, 0.55);
-  U.uAmb.value.set(0.04, 0.042, 0.055);
+  U.uMoonC.value.set(0.52, 0.55, 0.68);
+  U.uAmb.value.set(0.075, 0.078, 0.095);
+  U.uFogC.value.set(0.12, 0.13, 0.16);
   U.uOutZ.value = 80;
-  U.uFogD.value = 0.028;
+  U.uFogD.value = 0.014;
 
   const lights = [
-    { pos: new THREE.Vector3(-6, 14, -4), col: new THREE.Vector3(2.2, 2.0, 1.6) },
-    { pos: new THREE.Vector3(8, 10, 6), col: new THREE.Vector3(0.4, 0.55, 1.1) },
+    { pos: new THREE.Vector3(-6, 14, -4), col: new THREE.Vector3(2.8, 2.6, 2.1) },
+    { pos: new THREE.Vector3(8, 10, 6), col: new THREE.Vector3(0.65, 0.8, 1.35) },
+    { pos: new THREE.Vector3(0, 18, 2), col: new THREE.Vector3(1.1, 1.15, 1.25) },
   ];
   lights.forEach((L, i) => { U.uLP.value[i].copy(L.pos); U.uLC.value[i].copy(L.col); });
   computeBounce(lights, solids);
@@ -101,22 +104,25 @@ export function buildLobbySpace(scene) {
   g.add(moon);
 
   const floaters = [];
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < MATCH_PLAYERS; i++) {
     const astro = makeAstronaut(i);
-    const base = new THREE.Vector3(Math.cos(i * 2.09) * 2.4, 0.8 + i * 0.15, Math.sin(i * 2.09) * 1.8);
+    const base = new THREE.Vector3(Math.cos(i * 1.57) * 2.6, 0.75 + (i % 2) * 0.2, Math.sin(i * 1.57) * 2.0);
     astro.position.copy(base);
     g.add(astro);
     floaters.push({ g: astro, base, ph: i * 2.1, oy: i * 0.9 });
   }
 
   U.uMoonDir.value.set(0.2, 0.5, -0.85).normalize();
-  U.uMoonC.value.set(0.12, 0.14, 0.22);
-  U.uAmb.value.set(0.025, 0.028, 0.04);
-  U.uFogD.value = 0.012;
+  U.uMoonC.value.set(0.28, 0.32, 0.48);
+  U.uAmb.value.set(0.055, 0.058, 0.075);
+  U.uFogC.value.set(0.08, 0.09, 0.12);
+  U.uFogD.value = 0.006;
   U.uLP.value[0].set(-4, 6, 8);
-  U.uLC.value[0].set(1.4, 1.35, 1.2);
-  U.uLP.value[1].set(6, 2, -6);
-  U.uLC.value[1].set(0.25, 0.35, 0.9);
+  U.uLC.value[0].set(2.0, 1.9, 1.65);
+  U.uLP.value[1].set(6, 3, -6);
+  U.uLC.value[1].set(0.45, 0.55, 1.15);
+  U.uLP.value[2].set(0, 12, 4);
+  U.uLC.value[2].set(0.9, 0.95, 1.05);
   U.uNV.value = 0;
 
   return { group: g, floaters, moon };

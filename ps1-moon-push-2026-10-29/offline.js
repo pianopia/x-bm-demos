@@ -1,5 +1,7 @@
-// Offline practice: local physics + simple bots when WebSocket unavailable.
-import { ARENA_R, MATCH_SEC, fellOff } from './world.js';
+// Local / bot-fill match simulation (4 players: you + 3 NPCs).
+import { ARENA_R, MATCH_SEC, MATCH_PLAYERS, fellOff } from './world.js';
+
+export { MATCH_PLAYERS };
 
 const BOT_NAMES = ['Bot-Alpha', 'Bot-Beta', 'Bot-Gamma'];
 
@@ -9,19 +11,25 @@ function spawnPos(i, n) {
 }
 
 export class OfflineRoom {
-  constructor(localName) {
+  /** @param {string} localName @param {{ localId?: string, lobbySec?: number }} opts */
+  constructor(localName, opts = {}) {
+    const localId = opts.localId ?? 'local';
+    const lobbySec = opts.lobbySec ?? 2.5;
     this.phase = 'lobby';
     this.timeLeft = MATCH_SEC;
     this.countdown = 0;
     this.tick = 0;
     this.players = [
-      { id: 'local', name: localName, x: 0, z: 0, vx: 0, vz: 0, deaths: 0, alive: true, yaw: 0, bot: false, pushCd: 0 },
-      ...BOT_NAMES.map((name, i) => ({
-        id: `bot${i}`, name, ...spawnPos(i + 1, 4), vx: 0, vz: 0, deaths: 0, alive: true, yaw: 0, bot: true,
-        pushCd: 0, think: Math.random() * 2,
+      {
+        id: localId, name: localName, x: 0, z: 0, vx: 0, vz: 0, deaths: 0, alive: true,
+        yaw: 0, bot: false, pushCd: 0,
+      },
+      ...BOT_NAMES.slice(0, MATCH_PLAYERS - 1).map((name, i) => ({
+        id: `bot${i}`, name, ...spawnPos(i + 1, MATCH_PLAYERS), vx: 0, vz: 0, deaths: 0, alive: true,
+        yaw: 0, bot: true, pushCd: 0, think: Math.random() * 2,
       })),
     ];
-    this._lobbyT = 2.5;
+    this._lobbyT = lobbySec;
     this._acc = 0;
     this.input = { x: 0, z: 0, push: false };
   }
@@ -146,6 +154,4 @@ export class OfflineRoom {
       }
     }
   }
-
-  aliveCount() { return this.players.length; }
 }

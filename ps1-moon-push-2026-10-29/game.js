@@ -1,7 +1,7 @@
 // PS1 Moon Push — lobby space scene → moon arena match
 import * as THREE from 'three';
 import { createPipeline } from '../ps1-tps-explore-rpg-2026-10-29/render.js';
-import { buildArena, buildLobbySpace, tickLobbyFloat, makeAstronaut } from './world.js';
+import { buildArena, buildLobbySpace, tickLobbyFloat, makeAstronaut, MATCH_PLAYERS } from './world.js';
 import { MoonNet, normalizePlayers } from './net.js';
 import { OfflineRoom } from './offline.js';
 
@@ -14,12 +14,12 @@ R.setSize(innerWidth, innerHeight);
 document.body.prepend(R.domElement);
 
 const lobbyScene = new THREE.Scene();
-lobbyScene.background = new THREE.Color(0.01, 0.012, 0.028);
-lobbyScene.fog = new THREE.FogExp2(0x020308, 0.008);
+lobbyScene.background = new THREE.Color(0.045, 0.05, 0.09);
+lobbyScene.fog = new THREE.FogExp2(0x0c0e18, 0.004);
 
 const arenaScene = new THREE.Scene();
-arenaScene.background = new THREE.Color(0.02, 0.025, 0.04);
-arenaScene.fog = new THREE.FogExp2(0x050608, 0.028);
+arenaScene.background = new THREE.Color(0.07, 0.075, 0.1);
+arenaScene.fog = new THREE.FogExp2(0x101218, 0.011);
 
 const cam = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.05, 200);
 const pipe = createPipeline(R);
@@ -29,6 +29,12 @@ buildArena(arenaScene);
 let view = 'lobby'; // lobby | arena
 let trans = null; // { phase: 'out'|'in', t: number }
 const TRANS_DUR = 0.4;
+const LOBBY_BOT_FILL_SEC = 12;
+
+let playerName = '';
+let lobbyWait = 0;
+let lobbyCount = 1;
+let botFillTriggered = false;
 
 addEventListener('resize', () => {
   cam.aspect = innerWidth / innerHeight;
@@ -71,10 +77,6 @@ function finishTransition() {
 
 function currentScene() {
   return view === 'arena' ? arenaScene : lobbyScene;
-}
-
-function inMatchView() {
-  return view === 'arena' && (phase === 'countdown' || phase === 'play' || phase === 'result');
 }
 
 function setPlayControls(on) {
@@ -177,6 +179,29 @@ function onMatchPlaying() {
   $('lobby').classList.remove('show');
 }
 
+function updateLobbyUi() {
+  const left = Math.max(0, Math.ceil(LOBBY_BOT_FILL_SEC - lobbyWait));
+  const need = MATCH_PLAYERS;
+  $('lobbySub').textContent = `${lobbyCount}/${need} 人 — 4人マッチ / NPC補充まで ${left}秒`;
+}
+
+function startBotFillMatch() {
+  if (botFillTriggered || mode === 'botfill' || mode === 'offline') return;
+  botFillTriggered = true;
+  if (net) { net.disconnect(); net = null; }
+  mode = 'botfill';
+  myId = 'local';
+  offline = new OfflineRoom(playerName, { localId: 'local', lobbySec: 1.5 });
+  phase = 'lobby';
+  view = 'lobby';
+  cdShown = -1;
+  setPlayControls(false);
+  $('lobby').classList.add('show');
+  $('lobbyText').textContent = 'NPC 補充マッチ';
+  $('lobbySub').textContent = `${MATCH_PLAYERS}人（あなた + NPC ${MATCH_PLAYERS - 1}）`;
+  setStatus('bot fill — 4人ローカル（サーバー待機タイムアウト）', 'practice');
+}
+
 function handleServerMsg(msg) {
   switch (msg.type) {
     case 'welcome':
@@ -190,9 +215,11 @@ function handleServerMsg(msg) {
       setPlayControls(false);
       $('lobby').classList.add('show');
       $('lobbyText').textContent = 'マッチメイキング';
-      $('lobbySub').textContent = `${msg.count ?? msg.players?.length ?? msg.inQueue ?? '?'} 人 / 開始 ${msg.needed ?? msg.min ?? 2} 人 — 宇宙で待機中`;
+      lobbyCount = Math.max(1, msg.count ?? msg.players?.length ?? msg.inQueue ?? 1);
+      updateLobbyUi();
       break;
     case 'countdown': {
+      botFillTriggered = true;
       phase = 'countdown';
       onMatchApproach();
       const n = msg.seconds ?? msg.value ?? msg.n ?? 3;
@@ -200,12 +227,14 @@ function handleServerMsg(msg) {
       break;
     }
     case 'start':
+      botFillTriggered = true;
       phase = 'play';
       onMatchPlaying();
       showBanner('START!');
       break;
     case 'state': {
       const p = msg.phase ?? 'play';
+      if (p === 'play' || p === 'countdown') botFillTriggered = true;
       if (p === 'play' || p === 'countdown') {
         if (phase !== 'play') onMatchApproach();
         if (p === 'play' && phase !== 'play') onMatchPlaying();
@@ -245,14 +274,18 @@ function showResult(rows) {
 }
 
 function startOnline(name) {
+  playerName = name;
   mode = 'online';
   phase = 'connecting';
   view = 'lobby';
+  lobbyWait = 0;
+  lobbyCount = 1;
+  botFillTriggered = false;
   setPlayControls(false);
   setStatus('Realtime に接続中…');
   $('lobby').classList.add('show');
   $('lobbyText').textContent = '接続中';
-  $('lobbySub').textContent = '宇宙軌道上でクルー待機…';
+  $('lobbySub').textContent = `4人マッチ待機 — NPC補充 ${LOBBY_BOT_FILL_SEC}秒`;
   net = new MoonNet({
     onStatus(st, detail) {
       if (st === 'online') setStatus(`オンライン (${detail})`, '');
@@ -268,14 +301,15 @@ function startOffline(name, fromFail = false) {
   if (net) { net.disconnect(); net = null; }
   mode = 'offline';
   myId = 'local';
-  offline = new OfflineRoom(name);
+  botFillTriggered = true;
+  offline = new OfflineRoom(name, { lobbySec: 2.5 });
   phase = 'lobby';
   view = 'lobby';
   cdShown = -1;
   setPlayControls(false);
   $('lobby').classList.add('show');
   $('lobbyText').textContent = fromFail ? 'offline practice' : 'オフライン練習';
-  $('lobbySub').textContent = '短い宇宙待機 → 月面アリーナ（ボット3体）';
+  $('lobbySub').textContent = `${MATCH_PLAYERS}人（NPC ${MATCH_PLAYERS - 1}）— 宇宙待機 → 月面`;
   setStatus('offline practice — WS 未接続', 'practice');
 }
 
@@ -283,6 +317,7 @@ function beginPlay() {
   $('title').classList.add('hide');
   const name = $('nameIn').value.trim() || defaultName();
   localStorage.setItem('moonpush-name', name);
+  playerName = name;
   startOnline(name);
 }
 
@@ -360,7 +395,7 @@ R.setAnimationLoop(() => {
 
   tickLobbyFloat(lobby.floaters, t);
 
-  if (mode === 'offline' && offline) {
+  if ((mode === 'offline' || mode === 'botfill') && offline) {
     if (offline.phase === 'countdown' && offline.countdown !== cdShown && offline.countdown > 0) {
       cdShown = offline.countdown;
       phase = 'countdown';
@@ -388,6 +423,11 @@ R.setAnimationLoop(() => {
     updateHud();
     if (view === 'arena') syncAvatars(st, dt);
   } else if (mode === 'online') {
+    if ((phase === 'lobby' || phase === 'connecting') && !botFillTriggered) {
+      lobbyWait += dt;
+      if (phase === 'lobby') updateLobbyUi();
+      if (lobbyWait >= LOBBY_BOT_FILL_SEC) startBotFillMatch();
+    }
     if (phase === 'play' && view === 'arena') {
       inputAcc += dt;
       if (inputAcc >= 0.05) {
